@@ -1,0 +1,312 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Global ─────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --bg-primary: #020617;
+  --bg-secondary: #0f172a;
+  --bg-tertiary: #1e293b;
+  --bg-card: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  --bg-card-highlight: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+  --bg-card-search: linear-gradient(135deg, #422006 0%, #0f172a 100%);
+  --bg-modal: linear-gradient(180deg, #0f172a 0%, #020617 100%);
+  --bg-upload: radial-gradient(ellipse at center, #0f172a 0%, #020617 70%);
+  --border-primary: #334155;
+  --border-secondary: #1e293b;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --scrollbar-bg: #0f172a;
+  --scrollbar-thumb: #334155;
+  --scrollbar-hover: #475569;
+  --shadow-node: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --shadow-hover: 0 4px 24px rgba(59, 130, 246, 0.15);
+  --overlay-bg: rgba(0, 0, 0, 0.5);
+}
+
+html.light {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f1f5f9;
+  --bg-card: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+  --bg-card-highlight: linear-gradient(135deg, #dbeafe 0%, #f1f5f9 100%);
+  --bg-card-search: linear-gradient(135deg, #fef3c7 0%, #f1f5f9 100%);
+  --bg-modal: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  --bg-upload: radial-gradient(ellipse at center, #ffffff 0%, #f1f5f9 70%);
+  --border-primary: #cbd5e1;
+  --border-secondary: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --scrollbar-bg: #f1f5f9;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-hover: #94a3b8;
+  --shadow-node: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-hover: 0 4px 24px rgba(59, 130, 246, 0.12);
+  --overlay-bg: rgba(0, 0, 0, 0.3);
+}
+
+body {
+  margin: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+  transition: background 0.3s, color 0.3s;
+}
+
+#root {
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ── Scrollbar ──────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-hover);
+}
+
+/* ── React Flow overrides ───────────────────────────── */
+.react-flow__background {
+  background-color: var(--bg-primary) !important;
+}
+
+.react-flow__minimap {
+  background-color: var(--bg-secondary) !important;
+  border: 1px solid var(--border-secondary) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+
+.react-flow__controls {
+  border-radius: 8px !important;
+  overflow: hidden;
+  border: 1px solid var(--border-secondary) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+}
+
+.react-flow__controls-button {
+  background-color: var(--bg-tertiary) !important;
+  border-color: var(--border-primary) !important;
+  color: var(--text-secondary) !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+.react-flow__controls-button:hover {
+  background-color: var(--border-primary) !important;
+  color: var(--text-primary) !important;
+}
+.react-flow__controls-button svg {
+  fill: currentColor !important;
+}
+
+/* ── Org Node styles ────────────────────────────────── */
+.org-node {
+  @apply rounded-xl border transition-all duration-200 cursor-pointer select-none;
+  background: var(--bg-card);
+  border-color: var(--border-primary);
+  min-width: 200px;
+  box-shadow: var(--shadow-node);
+}
+
+.org-node:hover {
+  border-color: #3b82f6;
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-1px);
+}
+
+.org-node--highlighted {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.25) !important;
+  background: var(--bg-card-highlight) !important;
+}
+
+.org-node--search-match {
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 24px rgba(245, 158, 11, 0.3) !important;
+  background: var(--bg-card-search) !important;
+}
+
+/* ── Filter multi-select ────────────────────────────── */
+.filter-dropdown {
+  @apply relative;
+}
+
+.filter-trigger {
+  @apply flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm
+    transition-colors cursor-pointer;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
+  min-width: 160px;
+}
+.filter-trigger:hover {
+  border-color: var(--text-muted);
+}
+
+.filter-trigger--active {
+  @apply border-accent-500 text-accent-500;
+}
+
+.filter-menu {
+  @apply absolute top-full left-0 mt-1 w-64 max-h-60 overflow-y-auto rounded-lg shadow-2xl z-50;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+}
+
+.filter-option {
+  @apply flex items-center gap-2 px-3 py-2 text-sm cursor-pointer transition-colors;
+  color: var(--text-secondary);
+}
+.filter-option:hover {
+  background: var(--bg-tertiary);
+}
+
+.filter-option--selected {
+  @apply text-accent-500;
+  background: var(--bg-tertiary);
+}
+
+/* ── Upload area ────────────────────────────────────── */
+.upload-zone {
+  @apply rounded-2xl border-2 border-dashed transition-all duration-300 cursor-pointer;
+  border-color: var(--border-primary);
+  background: rgba(15, 23, 42, 0.15);
+}
+html.light .upload-zone {
+  background: rgba(241, 245, 249, 0.5);
+}
+.upload-zone:hover,
+.upload-zone--active {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.05);
+  box-shadow: 0 0 40px rgba(59, 130, 246, 0.1);
+}
+
+/* ── Modal ──────────────────────────────────────────── */
+.modal-overlay {
+  @apply fixed inset-0 z-50 flex items-center justify-end;
+  background: var(--overlay-bg);
+  backdrop-filter: blur(4px);
+}
+
+.modal-panel {
+  @apply h-full w-full max-w-md overflow-y-auto animate-slide-in-right;
+  background: var(--bg-modal);
+  border-left: 1px solid var(--border-secondary);
+}
+
+/* ── Hierarchy tree modal ───────────────────────────── */
+.hierarchy-overlay {
+  @apply fixed inset-0 z-[60] flex items-center justify-center;
+  background: var(--overlay-bg);
+  backdrop-filter: blur(4px);
+}
+
+.hierarchy-modal {
+  @apply w-full max-w-3xl max-h-[85vh] overflow-auto rounded-2xl animate-fade-in;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Editable table ─────────────────────────────────── */
+.data-table {
+  @apply w-full text-sm border-collapse;
+}
+.data-table th {
+  @apply px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider sticky top-0 z-10;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-primary);
+}
+.data-table td {
+  @apply px-1 py-1;
+  border-bottom: 1px solid var(--border-secondary);
+}
+.data-table input {
+  @apply w-full px-2 py-1.5 rounded text-sm outline-none transition-colors;
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid transparent;
+}
+.data-table input:focus {
+  border-color: #3b82f6;
+  background: var(--bg-tertiary);
+}
+.data-table input::placeholder {
+  color: var(--text-muted);
+}
+.data-table tr:hover td {
+  background: var(--bg-tertiary);
+}
+
+/* ── Chip / Badge ───────────────────────────────────── */
+.badge {
+  @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+}
+.badge--dept {
+  @apply bg-violet-500/20 text-violet-400;
+}
+.badge--location {
+  @apply bg-emerald-500/20 text-emerald-400;
+}
+.badge--client {
+  @apply bg-amber-500/20 text-amber-400;
+}
+.badge--type {
+  @apply bg-cyan-500/20 text-cyan-400;
+}
+
+html.light .badge--dept {
+  @apply bg-violet-100 text-violet-700;
+}
+html.light .badge--location {
+  @apply bg-emerald-100 text-emerald-700;
+}
+html.light .badge--client {
+  @apply bg-amber-100 text-amber-700;
+}
+html.light .badge--type {
+  @apply bg-cyan-100 text-cyan-700;
+}
+
+/* ── Toolbar button ─────────────────────────────────── */
+.toolbar-btn {
+  @apply w-8 h-8 rounded-lg flex items-center justify-center transition-colors;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-secondary);
+}
+.toolbar-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+/* ── Tab button ─────────────────────────────────────── */
+.tab-btn {
+  @apply flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all;
+  color: var(--text-muted);
+}
+.tab-btn:hover {
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+}
+.tab-btn--active {
+  color: #3b82f6 !important;
+  background: rgba(59, 130, 246, 0.1) !important;
+}
