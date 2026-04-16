@@ -199,7 +199,7 @@ export const FileUpload: React.FC = () => {
             <div className="mt-6 text-left rounded-xl p-4" style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-secondary)' }}>
               <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Expected columns:</p>
               <div className="flex flex-wrap gap-1.5">
-                {['Name', 'Job Title', 'Department', 'Manager ID / Reports To', 'Location', 'Client'].map(col => (
+                {['Name', 'Job Title', 'Department', 'Manager ID / Reports To', 'Location', 'Client', 'Years of Experience'].map(col => (
                   <span key={col} className="px-2 py-0.5 rounded text-xs" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)', border: '1px solid var(--border-secondary)' }}>
                     {col}
                   </span>

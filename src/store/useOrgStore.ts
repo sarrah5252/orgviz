@@ -19,13 +19,18 @@ interface OrgStore {
   selectedNode: TreeNode | null;
   expandedNodes: Set<string>;
   highlightedPath: Set<string>;
+  orientation: 'vertical' | 'horizontal';
+
+  // Chart capture function (set by OrgChart component which has ReactFlow context)
+  captureChartFn: (() => Promise<string | undefined>) | null;
+  setCaptureChartFn: (fn: (() => Promise<string | undefined>) | null) => void;
 
   // Actions
   setData: (data: OrgData) => void;
   reset: () => void;
   setChartTitle: (title: string) => void;
   setEditingData: (editing: boolean) => void;
-  saveChart: () => void;
+  saveChart: (imageData?: string) => void;
   loadChart: (id: string) => void;
   deleteChart: (id: string) => void;
   newChart: () => void;
@@ -38,6 +43,7 @@ interface OrgStore {
   highlightChain: (nodeId: string) => void;
   clearHighlight: () => void;
   toggleTheme: () => void;
+  setOrientation: (orientation: 'vertical' | 'horizontal') => void;
 }
 
 function collectAllIds(node: TreeNode): string[] {
@@ -75,22 +81,32 @@ function loadSavedCharts(): SavedChart[] {
 }
 
 function persistCharts(charts: SavedChart[]) {
-  localStorage.setItem('orgviz-saved-charts', JSON.stringify(charts));
+  try {
+    // Strip imageData before saving to localStorage to prevent 5MB QuotaExceededError crash.
+    // The image data remains in the in-memory Zustand store so PPT export still works within the active session.
+    const stripped = charts.map(c => ({ ...c, imageData: undefined }));
+    localStorage.setItem('orgviz-saved-charts', JSON.stringify(stripped));
+  } catch (err) {
+    console.error("Failed to save charts to localStorage:", err);
+  }
 }
 
 export const useOrgStore = create<OrgStore>((set, get) => ({
   tree: null,
   employees: [],
-  filterOptions: { departments: [], titles: [], locations: [], clients: [] },
+  filterOptions: { departments: [], directReports: [], locations: [], clients: [], experience: [] },
   chartTitle: '',
   savedCharts: loadSavedCharts(),
   editingData: false,
   theme: (typeof window !== 'undefined' && localStorage.getItem('orgviz-theme') === 'light') ? 'light' : 'dark',
-  activeFilters: { departments: [], titles: [], locations: [], clients: [] },
+  activeFilters: { departments: [], directReports: [], locations: [], clients: [], experience: [] },
   searchQuery: '',
   selectedNode: null,
   expandedNodes: new Set<string>(),
   highlightedPath: new Set<string>(),
+  orientation: 'vertical',
+  captureChartFn: null,
+  setCaptureChartFn: (fn) => set({ captureChartFn: fn }),
 
   setData: (data) => {
     const expanded = new Set<string>();
@@ -104,7 +120,7 @@ export const useOrgStore = create<OrgStore>((set, get) => ({
       tree: data.tree,
       employees: data.employees,
       filterOptions: data.filters,
-      activeFilters: { departments: [], titles: [], locations: [], clients: [] },
+      activeFilters: { departments: [], directReports: [], locations: [], clients: [], experience: [] },
       searchQuery: '',
       selectedNode: null,
       expandedNodes: expanded,
@@ -116,8 +132,8 @@ export const useOrgStore = create<OrgStore>((set, get) => ({
   reset: () => set({
     tree: null,
     employees: [],
-    filterOptions: { departments: [], titles: [], locations: [], clients: [] },
-    activeFilters: { departments: [], titles: [], locations: [], clients: [] },
+    filterOptions: { departments: [], directReports: [], locations: [], clients: [], experience: [] },
+    activeFilters: { departments: [], directReports: [], locations: [], clients: [], experience: [] },
     searchQuery: '',
     selectedNode: null,
     expandedNodes: new Set(),
@@ -128,9 +144,11 @@ export const useOrgStore = create<OrgStore>((set, get) => ({
 
   setChartTitle: (title) => set({ chartTitle: title }),
 
+  setOrientation: (orientation) => set({ orientation }),
+
   setEditingData: (editing) => set({ editingData: editing }),
 
-  saveChart: () => {
+  saveChart: (imageData?: string) => {
     const { tree, employees, filterOptions, chartTitle, savedCharts } = get();
     if (!tree) return;
     const chart: SavedChart = {
@@ -140,6 +158,9 @@ export const useOrgStore = create<OrgStore>((set, get) => ({
       employees,
       filters: filterOptions,
       createdAt: Date.now(),
+      imageData,
+      // @ts-ignore - extending SavedChart type for orientation
+      orientation: get().orientation
     };
     const updated = [chart, ...savedCharts];
     persistCharts(updated);
@@ -158,12 +179,14 @@ export const useOrgStore = create<OrgStore>((set, get) => ({
       employees: chart.employees,
       filterOptions: chart.filters,
       chartTitle: chart.title,
-      activeFilters: { departments: [], titles: [], locations: [], clients: [] },
+      activeFilters: { departments: [], directReports: [], locations: [], clients: [], experience: [] },
       searchQuery: '',
       selectedNode: null,
       expandedNodes: expanded,
       highlightedPath: new Set(),
       editingData: false,
+      // @ts-ignore - orientation might not be in old saved charts
+      orientation: chart.orientation || 'vertical',
     });
   },
 

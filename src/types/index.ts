@@ -7,6 +7,8 @@ export interface Employee {
   location: string;
   client: string;
   employmentType: string;
+  yearsOfExperience?: number;
+  secondaryManagerIds?: string[];
 }
 
 export interface TreeNode extends Employee {
@@ -15,16 +17,18 @@ export interface TreeNode extends Employee {
 
 export interface FilterState {
   departments: string[];
-  titles: string[];
+  directReports: string[];
   locations: string[];
   clients: string[];
+  experience: string[];
 }
 
 export interface FilterOptions {
   departments: string[];
-  titles: string[];
+  directReports: string[];
   locations: string[];
   clients: string[];
+  experience: string[];
 }
 
 export interface OrgData {
@@ -40,4 +44,5 @@ export interface SavedChart {
   employees: Employee[];
   filters: FilterOptions;
   createdAt: number;
+  imageData?: string;
 }

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { toPng } from 'html-to-image';
 import { useOrgStore } from './store/useOrgStore';
 import { FileUpload } from './components/FileUpload';
 import { OrgChart } from './components/OrgChart';
@@ -97,8 +98,19 @@ const SavedChartsMenu: React.FC = () => {
         {/* Save current */}
         {tree && (
           <button
-            onClick={() => { saveChart(); }}
-            className="toolbar-btn"
+            onClick={async () => {
+              const { captureChartFn } = useOrgStore.getState();
+              
+              let dataUrl = undefined;
+              if (captureChartFn) {
+                // The captureChartFn guarantees a perfect complete screenshot 
+                // by using fitView and waiting for it to render
+                dataUrl = await captureChartFn();
+              }
+              
+              saveChart(dataUrl);
+            }}
+            className="toolbar-btn text-accent-400 hover:!text-accent-300"
             title="Save current chart"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -168,6 +180,22 @@ const SavedChartsMenu: React.FC = () => {
               </div>
             ))}
           </div>
+
+          <div className="p-2 bg-[var(--bg-tertiary)] flex justify-center border-t border-[var(--border-primary)]">
+            <button
+              onClick={async () => {
+                const { generateDeck } = await import('./utils/pptExport');
+                generateDeck(savedCharts);
+                setOpen(false);
+              }}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              Export Deck to PPT
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -236,12 +264,9 @@ const App: React.FC = () => {
           <SavedChartsMenu />
         </div>
 
-        {/* Filters + employee count */}
+        {/* Filters */}
         <div className="flex items-center gap-3">
           <FilterPanel />
-          <span className="text-xs font-medium px-2 py-1 rounded-full" style={{ background: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
-            {employees.length} employees
-          </span>
         </div>
       </header>
 

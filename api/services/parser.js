@@ -31,6 +31,15 @@ const HEADER_MAP = {
   'employmenttype': 'employmentType',
   'emp type': 'employmentType',
   'type': 'employmentType',
+  'years of experience': 'yearsOfExperience',
+  'yearsofexperience': 'yearsOfExperience',
+  'experience': 'yearsOfExperience',
+  'years experience': 'yearsOfExperience',
+  'yoe': 'yearsOfExperience',
+  'years exp': 'yearsOfExperience',
+  'exp': 'yearsOfExperience',
+  'tenure': 'yearsOfExperience',
+  'years': 'yearsOfExperience',
 };
 
 function normalizeHeaders(rawHeaders) {
@@ -71,14 +80,28 @@ export function parseFile(buffer, ext) {
       title: '',
       department: '',
       managerId: '',
+      secondaryManagerIds: [],
       location: '',
       client: '',
       employmentType: '',
+      yearsOfExperience: undefined,
     };
 
     for (const [rawHeader, normalizedField] of Object.entries(headerMapping)) {
       const value = String(row[rawHeader] || '').trim();
-      employee[normalizedField] = value;
+      if (normalizedField === 'yearsOfExperience') {
+        const num = parseFloat(value);
+        employee.yearsOfExperience = isNaN(num) ? undefined : num;
+      } else if (normalizedField === 'managerId') {
+        // Split by comma or semicolon for multiple managers
+        const parts = value.split(/[,;]+/).map(p => p.trim()).filter(Boolean);
+        if (parts.length > 0) {
+          employee.managerId = parts[0];
+          employee.secondaryManagerIds = parts.slice(1);
+        }
+      } else {
+        employee[normalizedField] = value;
+      }
     }
 
     // Auto-gen ID if missing
@@ -103,6 +126,7 @@ export function parseFile(buffer, ext) {
 
   if (managersAreNames) {
     employees.forEach(e => {
+      // Primary manager
       if (e.managerId && nameToId[e.managerId]) {
         e.managerId = nameToId[e.managerId];
       } else if (e.managerId && !nameToId[e.managerId]) {
@@ -111,6 +135,15 @@ export function parseFile(buffer, ext) {
         if (match) {
           e.managerId = match.id;
         }
+      }
+
+      // Secondary managers
+      if (e.secondaryManagerIds && e.secondaryManagerIds.length > 0) {
+        e.secondaryManagerIds = e.secondaryManagerIds.map(managerName => {
+          if (nameToId[managerName]) return nameToId[managerName];
+          const match = employees.find(emp => emp.name.toLowerCase() === managerName.toLowerCase());
+          return match ? match.id : managerName; // return resolved id or keep original if unfound
+        });
       }
     });
   }

@@ -1,12 +1,14 @@
-import React, { useCallback, useMemo, useRef } from 'react';
+import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import {
   ReactFlow,
-  MiniMap,
   Controls,
   Background,
   BackgroundVariant,
   useReactFlow,
   ReactFlowProvider,
+  getNodesBounds,
+  getViewportForBounds,
+  useNodes,
   type NodeTypes,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -19,45 +21,198 @@ const nodeTypes: NodeTypes = {
   orgNode: OrgNode as any,
 };
 
+const EXP_LEGEND = [
+  { color: '#22c55e', label: '< 2 years' },
+  { color: '#f97316', label: '2 – 4 years' },
+  { color: '#38bdf8', label: '4 – 8 years' },
+  { color: '#eab308', label: '8 – 16 years' },
+  { color: '#a855f7', label: '16+ years' },
+];
+
 const OrgChartInner: React.FC = () => {
   const { nodes, edges } = useTreeLayout();
-  const { fitView } = useReactFlow();
+  const { fitView, getNodes } = useReactFlow();
   const expandAll = useOrgStore(s => s.expandAll);
   const collapseAll = useOrgStore(s => s.collapseAll);
   const reset = useOrgStore(s => s.reset);
   const employees = useOrgStore(s => s.employees);
+  const setCaptureChartFn = useOrgStore(s => s.setCaptureChartFn);
   const flowRef = useRef<HTMLDivElement>(null);
+  const [legendOpen, setLegendOpen] = useState(true);
+
+  const hasExpData = useMemo(() =>
+    employees.some(e => e.yearsOfExperience !== undefined && e.yearsOfExperience !== null),
+    [employees]
+  );
+
+  const [legendPos, setLegendPos] = useState({ x: 20, y: 80 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStart = useRef({ x: 0, y: 0 });
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    // Only drag on left click
+    if (e.button !== 0) return;
+    setIsDragging(true);
+    dragStart.current = {
+      x: e.clientX - legendPos.x,
+      y: e.clientY - legendPos.y
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    setLegendPos({
+      x: e.clientX - dragStart.current.x,
+      y: e.clientY - dragStart.current.y
+    });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (isDragging) {
+      setIsDragging(false);
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  };
 
   const onInit = useCallback(() => {
     setTimeout(() => fitView({ padding: 0.2, duration: 500 }), 100);
   }, [fitView]);
 
-  const handleScreenshot = useCallback(async () => {
-    if (!flowRef.current) return;
-    const el = flowRef.current.querySelector('.react-flow__viewport') as HTMLElement;
-    if (!el) return;
+
+
+  /**
+   * Captures the chart perfectly cropped around the nodes without any math distortion.
+   * This forces the DOM wrapper into an absolute rigid box matching the tree bounds,
+   * lets ReactFlow native fitView handle the camera natively, takes the crisp shot,
+   * and invisibly restores the UI. This eliminates empty screen margins and flexbox squish bugs!
+   */
+  const captureFullChart = useCallback(async (): Promise<string | undefined> => {
+    if (!flowRef.current) return undefined;
+
+    const rfWrapper = flowRef.current;
+    const nodes = getNodes();
+    if (nodes.length === 0) return undefined;
+
+    // Yield to the event loop so any pending state changes or DOM updates complete
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const freshNodes = getNodes();
+
+    // 1. Calculate safe tightly padded boundaries
+    const rawBounds = getNodesBounds(freshNodes);
+    const targetWidth = rawBounds.width + 300 + 100; // Physical rect + padding
+    const targetHeight = rawBounds.height + 250 + 100;
+    
+    // Save original bounds to restore user state invisibly
+    const originalStyle = {
+      position: rfWrapper.style.position,
+      width: rfWrapper.style.width,
+      height: rfWrapper.style.height,
+      minWidth: rfWrapper.style.minWidth,
+      minHeight: rfWrapper.style.minHeight,
+      zIndex: rfWrapper.style.zIndex,
+    };
+
+    // 2. Dynamically calculate pixel ratio to prevent browser canvas sizing limits
+    let safePixelRatio = 2.0;
+    const MAX_DIMENSION = 10000;
+    if (targetWidth * safePixelRatio > MAX_DIMENSION) safePixelRatio = MAX_DIMENSION / targetWidth;
+    if (targetHeight * safePixelRatio > MAX_DIMENSION) safePixelRatio = Math.min(safePixelRatio, MAX_DIMENSION / targetHeight);
+    safePixelRatio = Math.max(0.5, safePixelRatio);
+
     try {
-      const dataUrl = await toPng(el, {
-        backgroundColor: '#020617',
-        quality: 1,
-        pixelRatio: 2,
+      // 3. Force the container into a rigid physical box perfectly hugging the tree.
+      // Absolute positioning bypasses flex-1 restrictions so it securely resizes.
+      rfWrapper.style.position = 'absolute';
+      rfWrapper.style.zIndex = '9999'; // Float above while capturing
+      rfWrapper.style.width = `${targetWidth}px`;
+      rfWrapper.style.height = `${targetHeight}px`;
+      rfWrapper.style.minWidth = `${targetWidth}px`;
+      rfWrapper.style.minHeight = `${targetHeight}px`;
+
+      // 4. Let React Flow natively calculate the layout into this perfectly-sized wrapper
+      fitView({ duration: 0, padding: 0.1 });
+      await new Promise(resolve => setTimeout(resolve, 300)); // wait for redraw
+
+      // 5. Native tightly cropped capture!
+      const dataUrl = await toPng(rfWrapper, {
+        width: targetWidth,
+        height: targetHeight,
+        pixelRatio: safePixelRatio,
+        skipFonts: true,
+        backgroundColor: 'rgba(0,0,0,0)', // Clean transparency
+        filter: (node: HTMLElement) => {
+          // Exclude floating UI overlays and background dots from the captured crop
+          if (node?.classList?.contains) {
+            const exclusionClasses = ['react-flow__panel', 'exp-legend', 'app-toolbar', 'react-flow__background'];
+            for (const cls of exclusionClasses) {
+              if (node.classList.contains(cls)) return false;
+            }
+          }
+          return true;
+        }
       });
+
+      return dataUrl;
+    } catch (err) {
+      console.error('Chart capture failed:', err);
+      return undefined;
+    } finally {
+      // 6. Seamlessly restore user interface silently
+      Object.assign(rfWrapper.style, originalStyle);
+      fitView({ padding: 0.2, duration: 0 });
+    }
+  }, [getNodes, fitView]);
+
+  const orientation = useOrgStore(s => s.orientation);
+  const setOrientation = useOrgStore(s => s.setOrientation);
+
+  // Register the capture function in the store so App.tsx can call it
+  useEffect(() => {
+    setCaptureChartFn(captureFullChart);
+    return () => setCaptureChartFn(null);
+  }, [captureFullChart, setCaptureChartFn]);
+
+  const handleScreenshot = useCallback(async () => {
+    const dataUrl = await captureFullChart();
+    if (dataUrl) {
       const link = document.createElement('a');
-      link.download = 'org-chart-screenshot.png';
+      link.download = `org-chart-${orientation}.png`;
       link.href = dataUrl;
       link.click();
-    } catch (err) {
-      console.error('Screenshot failed:', err);
     }
-  }, []);
+  }, [captureFullChart, orientation]);
+
+  const toggleOrientation = () => {
+    setOrientation(orientation === 'vertical' ? 'horizontal' : 'vertical');
+  };
 
   return (
     <div className="h-full w-full relative" ref={flowRef}>
       {/* Toolbar */}
-      <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+      <div className="app-toolbar absolute top-4 right-4 z-10 flex items-center gap-2">
         <span className="text-xs text-surface-400 mr-2">
           {employees.length} employees
         </span>
+
+        <button 
+          onClick={toggleOrientation} 
+          className={`toolbar-btn ${orientation === 'horizontal' ? 'text-accent-400' : ''}`} 
+          title={`Switch to ${orientation === 'vertical' ? 'Horizontal' : 'Vertical'} Layout`}
+        >
+          {orientation === 'vertical' ? (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 4.5v15m6-15v15m-11.25-15v15" />
+            </svg>
+          )}
+        </button>
+
+        <div className="w-px h-5 bg-surface-700 mx-1" />
+
         <button onClick={() => expandAll()} className="toolbar-btn" title="Expand All">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
@@ -98,13 +253,86 @@ const OrgChartInner: React.FC = () => {
         proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} color="#1e293b" gap={20} size={1} />
-        <MiniMap
-          nodeColor={() => '#3b82f6'}
-          maskColor="rgba(0, 0, 0, 0.7)"
-          style={{ width: 150, height: 100 }}
-        />
         <Controls showInteractive={false} />
       </ReactFlow>
+
+      {/* Experience Color Legend */}
+      {hasExpData && (
+        <div
+          className="exp-legend absolute z-50 rounded-xl transition-shadow"
+          style={{
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border-primary)',
+            backdropFilter: 'blur(12px)',
+            boxShadow: isDragging ? '0 12px 30px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.3)',
+            top: '0px',
+            left: '0px',
+            transform: `translate(${legendPos.x}px, ${legendPos.y}px)`,
+            cursor: isDragging ? 'grabbing' : 'grab',
+            touchAction: 'none'
+          }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
+          <div className="flex items-center justify-between px-3 py-2 w-full select-none cursor-inherit">
+            <button
+              onClick={(e) => { e.stopPropagation(); setLegendOpen(prev => !prev); }}
+              className="flex items-center gap-2 text-left bg-transparent border-none outline-none cursor-pointer p-0"
+              title="Toggle legend"
+            >
+              <div className="flex gap-1">
+                {EXP_LEGEND.map(item => (
+                  <div
+                    key={item.color}
+                    className="w-2.5 h-2.5 rounded-sm"
+                    style={{ backgroundColor: item.color }}
+                  />
+                ))}
+              </div>
+              <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                Experience Legend
+              </span>
+              <svg
+                className={`w-3 h-3 transition-transform ${legendOpen ? 'rotate-180' : ''}`}
+                style={{ color: 'var(--text-muted)' }}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              </svg>
+            </button>
+            <div className="text-xs text-surface-500 ml-3 opacity-50">|||</div>
+          </div>
+          {legendOpen && (
+            <div className="px-3 pb-3 pt-1 space-y-1.5 border-t" style={{ borderColor: 'var(--border-secondary)', cursor: 'default' }} onPointerDown={e => e.stopPropagation()}>
+              {EXP_LEGEND.map(item => (
+                <div key={item.color} className="flex items-center gap-2.5">
+                  <div
+                    className="w-4 h-3 rounded-sm flex-shrink-0"
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                    {item.label}
+                  </span>
+                </div>
+              ))}
+              <div className="flex items-center gap-2.5 pt-1" style={{ borderTop: '1px solid var(--border-secondary)' }}>
+                <div
+                  className="w-4 h-3 rounded-sm flex-shrink-0"
+                  style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-primary)' }}
+                />
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  No data
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

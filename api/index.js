@@ -51,6 +51,12 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`✓ Server running on port ${PORT}`);
-});
+// Conditionally listen (Vercel serverless handles listening internally)
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`✓ Server running on port ${PORT}`);
+  });
+}
+
+// Export the Express app for Vercel Serverless compatibility
+export default app;

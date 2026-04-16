@@ -44,8 +44,8 @@ export const DetailModal: React.FC = () => {
   const directReports = employees.filter(e => e.managerId === emp.id);
 
   // Build reporting chain (upward)
-  const chain: Employee[] = [];
-  let current = emp;
+  const chain: any[] = [];
+  let current: any = emp;
   let safety = 0;
   while (safety < 50) {
     const mgr = employees.find(e => e.id === current.managerId);
@@ -105,6 +105,9 @@ export const DetailModal: React.FC = () => {
               <InfoCard label="Location" value={emp.location} />
               <InfoCard label="Client" value={emp.client && emp.client !== '—' ? emp.client : '—'} />
               <InfoCard label="Employee ID" value={emp.id} />
+              {emp.yearsOfExperience !== undefined && emp.yearsOfExperience !== null && (
+                <InfoCard label="Years of Experience" value={`${emp.yearsOfExperience} year${emp.yearsOfExperience !== 1 ? 's' : ''}`} />
+              )}
               {emp.employmentType && <InfoCard label="Employment Type" value={emp.employmentType} />}
               {manager && <InfoCard label="Reports To" value={manager.name} />}
             </div>

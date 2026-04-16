@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useOrgStore } from '../store/useOrgStore';
 
 interface MultiSelectProps {
@@ -86,16 +86,34 @@ const MultiSelect: React.FC<MultiSelectProps> = ({ label, options, selected, onC
     </div>
   );
 };
-
 export const FilterPanel: React.FC = () => {
+  const tree = useOrgStore(s => s.tree);
   const filterOptions = useOrgStore(s => s.filterOptions);
   const activeFilters = useOrgStore(s => s.activeFilters);
   const setFilters = useOrgStore(s => s.setFilters);
 
-  const hasActiveFilters = Object.values(activeFilters).some(arr => arr.length > 0);
+  const hasActiveFilters = Object.values(activeFilters).some(arr => arr && arr.length > 0);
+
+  const directReportsList = useMemo(() => {
+    if (tree) {
+      // Find all names of employees who manage someone
+      const managers = new Set<string>();
+      const traverse = (node: any) => {
+        if (node.id !== 'root' && node !== tree && node.children && node.children.length > 0) {
+          managers.add(node.name);
+        }
+        if (node.children) node.children.forEach(traverse);
+      };
+      traverse(tree);
+      return [...managers].sort();
+    }
+    // Fallback to server-provided list
+    if (filterOptions.directReports && filterOptions.directReports.length > 0) return filterOptions.directReports;
+    return [];
+  }, [filterOptions.directReports, tree]);
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
+    <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
       <MultiSelect
         label="Department"
         options={filterOptions.departments}
@@ -103,13 +121,15 @@ export const FilterPanel: React.FC = () => {
         onChange={(v) => setFilters({ departments: v })}
         colorClass="bg-violet-500/20 text-violet-300"
       />
-      <MultiSelect
-        label="Job Title"
-        options={filterOptions.titles}
-        selected={activeFilters.titles}
-        onChange={(v) => setFilters({ titles: v })}
-        colorClass="bg-blue-500/20 text-blue-300"
-      />
+      {directReportsList.length > 0 && (
+        <MultiSelect
+          label="Direct Reports"
+          options={directReportsList}
+          selected={activeFilters.directReports || []}
+          onChange={(v) => setFilters({ directReports: v })}
+          colorClass="bg-blue-500/20 text-blue-300"
+        />
+      )}
       <MultiSelect
         label="Location"
         options={filterOptions.locations}
@@ -125,9 +145,10 @@ export const FilterPanel: React.FC = () => {
         colorClass="bg-amber-500/20 text-amber-300"
       />
 
+
       {hasActiveFilters && (
         <button
-          onClick={() => setFilters({ departments: [], titles: [], locations: [], clients: [] })}
+          onClick={() => setFilters({ departments: [], directReports: [], locations: [], clients: [] })}
           className="px-2 py-1 rounded-lg text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
         >
           Clear all

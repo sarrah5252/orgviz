@@ -9,10 +9,11 @@ interface RowData {
   managerId: string;
   location: string;
   client: string;
+  yearsExp: string;
 }
 
-const COLUMN_KEYS: (keyof RowData)[] = ['empId', 'name', 'title', 'department', 'managerId', 'location', 'client'];
-const COLUMN_LABELS = ['Emp ID', 'Name', 'Job Title', 'Department', 'Reports To', 'Location', 'Client'];
+const COLUMN_KEYS: (keyof RowData)[] = ['empId', 'name', 'title', 'department', 'managerId', 'location', 'client', 'yearsExp'];
+const COLUMN_LABELS = ['Emp ID', 'Name', 'Job Title', 'Department', 'Reports To', 'Location', 'Client', 'Years Exp.'];
 
 const EMPTY_ROW = (): RowData => ({
   empId: '',
@@ -22,6 +23,7 @@ const EMPTY_ROW = (): RowData => ({
   managerId: '',
   location: '',
   client: '',
+  yearsExp: '',
 });
 
 export const ManualEntry: React.FC = () => {
@@ -166,16 +168,20 @@ export const ManualEntry: React.FC = () => {
     setProcessing(true);
     try {
       let autoId = 1;
-      const employees = validRows.map(r => ({
-        id: r.empId.trim() || String(autoId++),
-        name: r.name.trim(),
-        title: r.title.trim(),
-        department: r.department.trim(),
-        managerId: r.managerId.trim(),
-        location: r.location.trim(),
-        client: r.client.trim(),
-        employmentType: '',
-      }));
+      const employees = validRows.map(r => {
+        const yoe = parseFloat(r.yearsExp.trim());
+        return {
+          id: r.empId.trim() || String(autoId++),
+          name: r.name.trim(),
+          title: r.title.trim(),
+          department: r.department.trim(),
+          managerId: r.managerId.trim(),
+          location: r.location.trim(),
+          client: r.client.trim(),
+          employmentType: '',
+          yearsOfExperience: isNaN(yoe) ? undefined : yoe,
+        };
+      });
 
       // Resolve manager names → IDs
       const nameToId: Record<string, string> = {};
@@ -213,24 +219,41 @@ export const ManualEntry: React.FC = () => {
         : { id: 'root', name: 'Organization', title: 'Root', department: '', managerId: '', location: '', client: '', employmentType: '', children: roots };
 
       const departments = new Set<string>();
-      const titles = new Set<string>();
+      const directReports = new Set<string>();
       const locations = new Set<string>();
       const clients = new Set<string>();
+      const experiences = new Set<string>();
+
+      function getExperienceRange(y: number | undefined) {
+        if (y === undefined || y === null || isNaN(y)) return null;
+        if (y < 2) return '< 2 years';
+        if (y < 4) return '2-4 years';
+        if (y < 8) return '4-8 years';
+        if (y < 16) return '8-16 years';
+        return '16+ years';
+      }
+
       employees.forEach(emp => {
         if (emp.department) departments.add(emp.department);
-        if (emp.title) titles.add(emp.title);
         if (emp.location) locations.add(emp.location);
         if (emp.client && emp.client !== '—') clients.add(emp.client);
+        const expRange = getExperienceRange(emp.yearsOfExperience);
+        if (expRange) experiences.add(expRange);
       });
+
+      if (tree && Array.isArray((tree as any).children)) {
+        (tree as any).children.forEach((child: any) => directReports.add(child.name));
+      }
 
       setData({
         tree,
         employees,
         filters: {
           departments: [...departments].sort(),
-          titles: [...titles].sort(),
+          directReports: [...directReports].sort(),
           locations: [...locations].sort(),
           clients: [...clients].sort(),
+          experience: [...experiences],
         },
       });
     } catch (err: any) {
