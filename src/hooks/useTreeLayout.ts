@@ -3,9 +3,9 @@ import type { Node, Edge } from '@xyflow/react';
 import type { TreeNode, FilterState } from '../types';
 import { useOrgStore } from '../store/useOrgStore';
 
-const NODE_WIDTH = 260;
+const NODE_WIDTH = 300;
 const NODE_HEIGHT = 100;
-const H_GAP = 50;
+const H_GAP = 60;
 const V_GAP = 80;
 
 interface LayoutResult {
