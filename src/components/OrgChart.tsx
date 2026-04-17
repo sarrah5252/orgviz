@@ -100,16 +100,15 @@ const OrgChartInner: React.FC = () => {
 
     // 1. Calculate safe tightly padded boundaries
     const rawBounds = getNodesBounds(freshNodes);
-    const targetWidth = rawBounds.width + 300 + 100; // Physical rect + padding
-    const targetHeight = rawBounds.height + 250 + 100;
+    const padding = 150; // Safety margin for wide nodes
+    const targetWidth = rawBounds.width + padding;
+    const targetHeight = rawBounds.height + padding;
     
     // Save original bounds to restore user state invisibly
     const originalStyle = {
       position: rfWrapper.style.position,
       width: rfWrapper.style.width,
       height: rfWrapper.style.height,
-      minWidth: rfWrapper.style.minWidth,
-      minHeight: rfWrapper.style.minHeight,
       zIndex: rfWrapper.style.zIndex,
     };
 
@@ -118,21 +117,19 @@ const OrgChartInner: React.FC = () => {
     const MAX_DIMENSION = 10000;
     if (targetWidth * safePixelRatio > MAX_DIMENSION) safePixelRatio = MAX_DIMENSION / targetWidth;
     if (targetHeight * safePixelRatio > MAX_DIMENSION) safePixelRatio = Math.min(safePixelRatio, MAX_DIMENSION / targetHeight);
-    safePixelRatio = Math.max(0.5, safePixelRatio);
+    safePixelRatio = Math.max(1.5, safePixelRatio); // High crispness floor
 
     try {
       // 3. Force the container into a rigid physical box perfectly hugging the tree.
-      // Absolute positioning bypasses flex-1 restrictions so it securely resizes.
       rfWrapper.style.position = 'absolute';
-      rfWrapper.style.zIndex = '9999'; // Float above while capturing
+      rfWrapper.style.zIndex = '9999'; 
       rfWrapper.style.width = `${targetWidth}px`;
       rfWrapper.style.height = `${targetHeight}px`;
-      rfWrapper.style.minWidth = `${targetWidth}px`;
-      rfWrapper.style.minHeight = `${targetHeight}px`;
 
       // 4. Let React Flow natively calculate the layout into this perfectly-sized wrapper
-      fitView({ duration: 0, padding: 0.1 });
-      await new Promise(resolve => setTimeout(resolve, 300)); // wait for redraw
+      // We use a very small padding here because we already added physical padding to the wrapper
+      fitView({ duration: 0, padding: 0.02 });
+      await new Promise(resolve => setTimeout(resolve, 400)); // wait for redraw
 
       // 5. Native tightly cropped capture!
       const dataUrl = await toPng(rfWrapper, {
@@ -140,7 +137,7 @@ const OrgChartInner: React.FC = () => {
         height: targetHeight,
         pixelRatio: safePixelRatio,
         skipFonts: true,
-        backgroundColor: 'rgba(0,0,0,0)', // Clean transparency
+        backgroundColor: 'rgba(0,0,0,0)', 
         filter: (node: HTMLElement) => {
           // Exclude floating UI overlays and background dots from the captured crop
           if (node?.classList?.contains) {

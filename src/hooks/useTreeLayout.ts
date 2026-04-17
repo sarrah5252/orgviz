@@ -3,10 +3,10 @@ import type { Node, Edge } from '@xyflow/react';
 import type { TreeNode, FilterState } from '../types';
 import { useOrgStore } from '../store/useOrgStore';
 
-const NODE_WIDTH = 300;
-const NODE_HEIGHT = 100;
-const H_GAP = 60;
-const V_GAP = 80;
+const NODE_WIDTH = 500;
+const NODE_HEIGHT = 125;
+const H_GAP = 120;
+const V_GAP = 90;
 
 interface LayoutResult {
   nodes: Node[];
@@ -50,13 +50,30 @@ function filterTree(node: TreeNode, filters: FilterState): TreeNode | null {
   return null;
 }
 
+function getNodeDimensions(node: TreeNode, orientation: 'vertical' | 'horizontal') {
+  const isVertical = orientation === 'vertical';
+  // Dynamic width estimation based on character counts
+  const nameLen = node.name.length;
+  const titleLen = (node.title || '').length;
+  
+  // 9.5px per char for names (14px font), 8px per char for titles (12px font)
+  // 40px buffer for badges and padding
+  const estimatedWidth = Math.max(250, nameLen * 9.5 + 50, titleLen * 8 + 40);
+  
+  return {
+    width: estimatedWidth,
+    height: NODE_HEIGHT
+  };
+}
+
 function computeSubtreeBreadth(
   node: TreeNode,
   expandedNodes: Set<string>,
   orientation: 'vertical' | 'horizontal'
 ): number {
   const isVertical = orientation === 'vertical';
-  const nodeBreadth = isVertical ? NODE_WIDTH : NODE_HEIGHT;
+  const { width, height } = getNodeDimensions(node, orientation);
+  const nodeBreadth = isVertical ? width : height;
   const gap = isVertical ? H_GAP : V_GAP;
 
   if (!expandedNodes.has(node.id) || node.children.length === 0) {
@@ -88,6 +105,8 @@ function layoutTree(
     ? node.name.toLowerCase().includes(searchQuery.toLowerCase())
     : false;
 
+  const { width, height } = getNodeDimensions(node, orientation);
+
   // Swap coordinates based on orientation
   const position = isVertical 
     ? { x: breadthPos, y: depthPos } 
@@ -105,7 +124,9 @@ function layoutTree(
       isSearchMatch,
       childCount: node.children.length,
       orientation,
+      dynamicWidth: width,
     },
+    style: { width, height }
   });
 
   if (parentId) {
@@ -128,14 +149,14 @@ function layoutTree(
   const gap = isVertical ? H_GAP : V_GAP;
   const totalBreadth = childrenBreadths.reduce((s, w) => s + w + gap, -gap);
   
-  const nodeBreadth = isVertical ? NODE_WIDTH : NODE_HEIGHT;
-  const nodeDepth = isVertical ? NODE_HEIGHT : NODE_WIDTH;
+  const nodeBreadth = isVertical ? width : height;
+  const nodeDepth = isVertical ? height : width;
   const depthGap = isVertical ? V_GAP : H_GAP;
 
   let currentBreadth = breadthPos + nodeBreadth / 2 - totalBreadth / 2;
 
   node.children.forEach((child, i) => {
-    const childBreadth = currentBreadth + childrenBreadths[i] / 2 - nodeBreadth / 2;
+    const childBreadth = currentBreadth + childrenBreadths[i] / 2 - getNodeDimensions(child, orientation)[isVertical ? 'width':'height'] / 2;
     layoutTree(
       child,
       childBreadth,

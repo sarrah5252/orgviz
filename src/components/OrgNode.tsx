@@ -89,7 +89,7 @@ const OrgNodeComponent: React.FC<NodeProps> = ({ data }) => {
   const sourcePosition = isVertical ? Position.Bottom : Position.Right;
 
   return (
-    <div className={nodeClass} onClick={handleClick} style={nodeBodyStyle}>
+    <div className={nodeClass} onClick={handleClick} style={{ ...nodeBodyStyle, width: '100%', height: '100%' }}>
       <Handle 
         type="target" 
         position={targetPosition} 
@@ -105,8 +105,8 @@ const OrgNodeComponent: React.FC<NodeProps> = ({ data }) => {
 
       <div className="px-3 py-2.5">
         {/* Name */}
-        <div className="flex items-center justify-between gap-1.5">
-          <p className="text-sm leading-tight whitespace-normal break-words" style={{ color: primaryTextColor, fontWeight: 800 }} title={employee.name}>
+        <div className="flex items-start justify-between gap-1.5">
+          <p className="text-sm leading-normal whitespace-nowrap flex-shrink-0" style={{ color: primaryTextColor, fontWeight: 800 }} title={employee.name}>
             {employee.name}
           </p>
           {employee.id && employee.id !== 'root' && (
@@ -117,7 +117,7 @@ const OrgNodeComponent: React.FC<NodeProps> = ({ data }) => {
           )}
         </div>
         {/* Title */}
-        <p className="text-xs mt-0.5 leading-tight whitespace-normal break-words" style={{ color: primaryTextColor, fontWeight: 700 }} title={employee.title}>
+        <p className="text-xs mt-1.5 leading-normal whitespace-nowrap flex-shrink-0" style={{ color: primaryTextColor, fontWeight: 700 }} title={employee.title}>
           {employee.title}
         </p>
 
