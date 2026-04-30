@@ -265,6 +265,13 @@ export async function generateDeck(charts: SavedChart[]) {
     });
   });
 
-  // Trigger browser download
-  await pres.writeFile({ fileName: `Organogram_Badri_${currentMonth.replace(' ', '_')}.pptx` });
+  // 4. Trigger download using Base64 Data URI (more reliable in some restricted environments than Blobs)
+  const base64 = await pres.write({ outputType: 'base64' }) as string;
+  const dataUri = 'data:application/vnd.openxmlformats-officedocument.presentationml.presentation;base64,' + base64;
+  const a = document.createElement('a');
+  a.href = dataUri;
+  a.download = `Organogram_Badri.pptx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }

@@ -5,7 +5,7 @@ import { useOrgStore } from '../store/useOrgStore';
 
 const NODE_WIDTH = 500;
 const NODE_HEIGHT = 125;
-const H_GAP = 120;
+const H_GAP = 30;
 const V_GAP = 90;
 
 interface LayoutResult {
@@ -13,7 +13,7 @@ interface LayoutResult {
   edges: Edge[];
 }
 
-function filterTree(node: TreeNode, filters: FilterState): TreeNode | null {
+function filterTree(node: TreeNode, filters: FilterState, depth = 0): TreeNode | null {
   const hasActiveFilters =
     filters.departments.length > 0 ||
     filters.locations.length > 0 ||
@@ -23,7 +23,7 @@ function filterTree(node: TreeNode, filters: FilterState): TreeNode | null {
   if (!hasActiveFilters) return node;
 
   const filteredChildren = node.children
-    .map(child => filterTree(child, filters))
+    .map(child => filterTree(child, filters, depth + 1))
     .filter(Boolean) as TreeNode[];
 
   function getExpRange(y: number | undefined | null) {
@@ -43,7 +43,10 @@ function filterTree(node: TreeNode, filters: FilterState): TreeNode | null {
     (filters.clients.length === 0 || (node.client && node.client !== '—' && filters.clients.includes(node.client))) &&
     (filters.experience.length === 0 || (expRange && filters.experience.includes(expRange)));
 
-  if (matches || filteredChildren.length > 0) {
+  // Pin MD (depth 0) and specific Level 1 directors (depth 1)
+  const isPinned = (depth === 0) || (depth === 1 && (node.name === 'Ali Bhuriwala' || node.name === 'Ajmal Bhatty'));
+
+  if (matches || filteredChildren.length > 0 || isPinned) {
     return { ...node, children: filteredChildren };
   }
 
@@ -97,7 +100,8 @@ function layoutTree(
   orientation: 'vertical' | 'horizontal',
   nodes: Node[],
   edges: Edge[],
-  parentId?: string
+  parentId?: string,
+  depth = 0
 ): void {
   const isVertical = orientation === 'vertical';
   const isHighlighted = highlightedPath.has(node.id);
@@ -167,7 +171,8 @@ function layoutTree(
       orientation,
       nodes,
       edges,
-      node.id
+      node.id,
+      depth + 1
     );
     currentBreadth += childrenBreadths[i] + gap;
   });

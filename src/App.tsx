@@ -97,26 +97,65 @@ const SavedChartsMenu: React.FC = () => {
       <div className="flex items-center gap-1">
         {/* Save current */}
         {tree && (
-          <button
-            onClick={async () => {
-              const { captureChartFn } = useOrgStore.getState();
-              
-              let dataUrl = undefined;
-              if (captureChartFn) {
-                // The captureChartFn guarantees a perfect complete screenshot 
-                // by using fitView and waiting for it to render
-                dataUrl = await captureChartFn();
-              }
-              
-              saveChart(dataUrl);
-            }}
-            className="toolbar-btn text-accent-400 hover:!text-accent-300"
-            title="Save current chart"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={async (e) => {
+                const btn = e.currentTarget;
+                const originalHtml = btn.innerHTML;
+                const { captureChartFn } = useOrgStore.getState();
+                
+                let dataUrl = undefined;
+                if (captureChartFn) {
+                  dataUrl = await captureChartFn();
+                }
+                
+                saveChart(dataUrl);
+                
+                // Show success feedback
+                btn.innerHTML = `<svg class="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>`;
+                setTimeout(() => { btn.innerHTML = originalHtml; }, 2000);
+              }}
+              className="toolbar-btn text-accent-400 hover:!text-accent-300"
+              title="Save to deck"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
+              </svg>
+            </button>
+
+            {/* Quick PPT Download for current view */}
+            <button
+              onClick={async () => {
+                const { captureChartFn, tree, employees, filterOptions, chartTitle, orientation } = useOrgStore.getState();
+                if (!tree) return;
+                
+                let dataUrl = undefined;
+                if (captureChartFn) {
+                  dataUrl = await captureChartFn();
+                }
+
+                const { generateDeck } = await import('./utils/pptExport');
+                // Export just this one chart as a quick PPT
+                generateDeck([{
+                  id: 'quick-export',
+                  title: chartTitle || 'Quick Export',
+                  tree,
+                  employees,
+                  filters: filterOptions,
+                  createdAt: Date.now(),
+                  imageData: dataUrl,
+                  // @ts-ignore
+                  orientation
+                }]);
+              }}
+              className="toolbar-btn text-red-500 hover:!text-red-400"
+              title="Download current as PPT"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+              </svg>
+            </button>
+          </div>
         )}
         {/* New chart */}
         <button
