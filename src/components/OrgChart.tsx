@@ -7,8 +7,6 @@ import {
   useReactFlow,
   ReactFlowProvider,
   getNodesBounds,
-  getViewportForBounds,
-  useNodes,
   type NodeTypes,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -81,70 +79,69 @@ const OrgChartInner: React.FC = () => {
 
 
 
-  /**
-   * Captures the chart perfectly cropped around the nodes without any math distortion.
-   * This forces the DOM wrapper into an absolute rigid box matching the tree bounds,
-   * lets ReactFlow native fitView handle the camera natively, takes the crisp shot,
-   * and invisibly restores the UI. This eliminates empty screen margins and flexbox squish bugs!
-   */
   const captureFullChart = useCallback(async (): Promise<string | undefined> => {
     if (!flowRef.current) return undefined;
 
-    const rfWrapper = flowRef.current;
     const nodes = getNodes();
     if (nodes.length === 0) return undefined;
 
-    // Yield to the event loop so any pending state changes or DOM updates complete
-    await new Promise(resolve => setTimeout(resolve, 300));
+    // Yield to ensure React has flushed state
+    await new Promise(resolve => setTimeout(resolve, 200));
     const freshNodes = getNodes();
 
-    // 1. Calculate safe tightly padded boundaries
+    // 1. Calculate tight bounds — accurate because nodes have explicit width/height
     const rawBounds = getNodesBounds(freshNodes);
-    const padding = 400; // Increased padding to prevent any clipping of wide nodes or shadows
-    const targetWidth = rawBounds.width + padding;
-    const targetHeight = rawBounds.height + padding;
-    
-    // Save original bounds to restore user state invisibly
-    const originalStyle = {
-      position: rfWrapper.style.position,
-      width: rfWrapper.style.width,
-      height: rfWrapper.style.height,
-      zIndex: rfWrapper.style.zIndex,
-      left: rfWrapper.style.left,
-      top: rfWrapper.style.top,
-    };
+    const padding = 60; // Just enough for borders/shadows, no wasted space
+    const targetWidth = Math.ceil(rawBounds.width + padding * 2);
+    const targetHeight = Math.ceil(rawBounds.height + padding * 2);
 
-    // 2. Dynamically calculate pixel ratio to prevent browser canvas sizing limits
+    // 2. Calculate safe pixel ratio
     let safePixelRatio = 2.0;
-    const MAX_DIMENSION = 12000; // Slightly higher limit
+    const MAX_DIMENSION = 12000;
     if (targetWidth * safePixelRatio > MAX_DIMENSION) safePixelRatio = MAX_DIMENSION / targetWidth;
     if (targetHeight * safePixelRatio > MAX_DIMENSION) safePixelRatio = Math.min(safePixelRatio, MAX_DIMENSION / targetHeight);
-    safePixelRatio = Math.max(1.2, safePixelRatio); 
+    safePixelRatio = Math.max(1.2, safePixelRatio);
+
+    // 3. Calculate exact 1:1 transform to position nodes tightly within the canvas
+    //    This translates so that rawBounds.x,y maps to (padding, padding)
+    const captureTransform = {
+      x: -rawBounds.x + padding,
+      y: -rawBounds.y + padding,
+    };
+
+    // 4. Get the viewport element — contains all rendered nodes
+    const viewport = flowRef.current.querySelector('.react-flow__viewport') as HTMLElement;
+    if (!viewport) return undefined;
+
+    // 5. First, ensure ALL nodes are in the DOM by fitting them in view briefly
+    fitView({ duration: 0, padding: 0.1 });
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     try {
-      // 3. Force the container into a rigid physical box perfectly hugging the tree.
-      rfWrapper.style.position = 'fixed'; // Use fixed to ensure it's not affected by scroll
-      rfWrapper.style.top = '0';
-      rfWrapper.style.left = '0';
-      rfWrapper.style.zIndex = '99999'; 
-      rfWrapper.style.width = `${targetWidth}px`;
-      rfWrapper.style.height = `${targetHeight}px`;
-
-      // 4. Let React Flow natively calculate the layout into this perfectly-sized wrapper
-      // Increase padding in fitView to ensure nodes aren't touching edges
-      fitView({ duration: 0, padding: 0.1 }); 
-      await new Promise(resolve => setTimeout(resolve, 500)); // slightly longer wait for high-res render
-
-      // 5. Native tightly cropped capture!
-      const dataUrl = await toPng(rfWrapper, {
+      // 6. Capture the viewport with our precise transform override
+      //    html-to-image clones the element and applies these styles to the clone,
+      //    so the original DOM is untouched. The clone renders at exactly our target size
+      //    with nodes positioned via our calculated transform.
+      const dataUrl = await toPng(viewport, {
         width: targetWidth,
         height: targetHeight,
         pixelRatio: safePixelRatio,
         skipFonts: true,
-        backgroundColor: '#F5F7FA', // Matches PPT BG_LIGHT for seamless look
+        backgroundColor: '#F5F7FA',
+        style: {
+          width: `${targetWidth}px`,
+          height: `${targetHeight}px`,
+          transform: `translate(${captureTransform.x}px, ${captureTransform.y}px) scale(1)`,
+          transformOrigin: 'top left',
+          overflow: 'visible',
+        },
         filter: (node: HTMLElement) => {
           if (node?.classList?.contains) {
-            const exclusionClasses = ['react-flow__panel', 'exp-legend', 'app-toolbar', 'react-flow__background', 'react-flow__controls'];
+            const exclusionClasses = [
+              'react-flow__panel', 'exp-legend', 'app-toolbar',
+              'react-flow__background', 'react-flow__controls',
+              'react-flow__minimap'
+            ];
             for (const cls of exclusionClasses) {
               if (node.classList.contains(cls)) return false;
             }
@@ -158,8 +155,7 @@ const OrgChartInner: React.FC = () => {
       console.error('Chart capture failed:', err);
       return undefined;
     } finally {
-      // 6. Seamlessly restore user interface silently
-      Object.assign(rfWrapper.style, originalStyle);
+      // Restore normal view
       fitView({ padding: 0.2, duration: 0 });
     }
   }, [getNodes, fitView]);

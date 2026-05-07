@@ -120,6 +120,8 @@ function layoutTree(
     id: node.id,
     type: 'orgNode',
     position,
+    width,
+    height,
     data: {
       employee: node,
       hasChildren: node.children.length > 0,
