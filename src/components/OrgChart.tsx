@@ -95,12 +95,12 @@ const OrgChartInner: React.FC = () => {
     const targetWidth = Math.ceil(rawBounds.width + padding * 2);
     const targetHeight = Math.ceil(rawBounds.height + padding * 2);
 
-    // 2. Calculate safe pixel ratio
-    let safePixelRatio = 2.0;
-    const MAX_DIMENSION = 12000;
+    // 2. Calculate safe pixel ratio — use 4x for crisp text in PPT exports
+    let safePixelRatio = 4.0;
+    const MAX_DIMENSION = 20000;
     if (targetWidth * safePixelRatio > MAX_DIMENSION) safePixelRatio = MAX_DIMENSION / targetWidth;
     if (targetHeight * safePixelRatio > MAX_DIMENSION) safePixelRatio = Math.min(safePixelRatio, MAX_DIMENSION / targetHeight);
-    safePixelRatio = Math.max(1.2, safePixelRatio);
+    safePixelRatio = Math.max(3.0, safePixelRatio);
 
     // 3. Calculate exact 1:1 transform to position nodes tightly within the canvas
     //    This translates so that rawBounds.x,y maps to (padding, padding)

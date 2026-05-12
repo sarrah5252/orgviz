@@ -4,8 +4,8 @@ import type { TreeNode, FilterState } from '../types';
 import { useOrgStore } from '../store/useOrgStore';
 
 const NODE_WIDTH = 500;
-const NODE_HEIGHT = 125;
-const H_GAP = 30;
+const NODE_HEIGHT = 140;
+const H_GAP = 40;
 const V_GAP = 90;
 
 interface LayoutResult {
@@ -55,13 +55,17 @@ function filterTree(node: TreeNode, filters: FilterState, depth = 0): TreeNode |
 
 function getNodeDimensions(node: TreeNode, orientation: 'vertical' | 'horizontal') {
   const isVertical = orientation === 'vertical';
-  // Dynamic width estimation based on character counts
   const nameLen = node.name.length;
   const titleLen = (node.title || '').length;
+  const idLen = (node.id || '').length;
+  const deptLen = (node.department || '').length;
+  const locationLen = (node.location || '').length;
   
-  // 9.5px per char for names (14px font), 8px per char for titles (12px font)
-  // 40px buffer for badges and padding
-  const estimatedWidth = Math.max(250, nameLen * 9.5 + 50, titleLen * 8 + 40);
+  // Compact sizing — boxes should be small, text clarity comes from capture resolution
+  const nameWidth = nameLen * 9.5 + idLen * 8 + 60;
+  const titleWidth = titleLen * 8 + 50;
+  const badgeWidth = (deptLen + locationLen) * 7 + 50;
+  const estimatedWidth = Math.max(260, nameWidth, titleWidth, badgeWidth);
   
   return {
     width: estimatedWidth,

@@ -1,11 +1,12 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { toPng } from 'html-to-image';
 import { useOrgStore } from './store/useOrgStore';
 import { FileUpload } from './components/FileUpload';
 import { OrgChart } from './components/OrgChart';
 import { FilterPanel } from './components/FilterPanel';
-import { SearchBar } from './components/SearchBar';
 import { DetailModal } from './components/DetailModal';
+import { BatchExportModal } from './components/BatchExportModal';
+import type { FilterState } from './types';
 
 const ThemeToggle: React.FC = () => {
   const theme = useOrgStore(s => s.theme);
@@ -241,12 +242,103 @@ const SavedChartsMenu: React.FC = () => {
   );
 };
 
+// ─── Helper: find Actuarial team leads ──────────────────────
+// Actuarial team leads are direct children of the MD (root) whose department is "Actuarial".
+// Each one gets their own organogram slide showing their full team.
+function findActuarialTeamLeads(tree: any): any[] {
+  if (!tree || !tree.children) return [];
+  return tree.children.filter((child: any) => child.department === 'Actuarial');
+}
+
 // ─── Main App ───────────────────────────────────────────────
 const App: React.FC = () => {
   const tree = useOrgStore(s => s.tree);
   const editingData = useOrgStore(s => s.editingData);
   const setEditingData = useOrgStore(s => s.setEditingData);
   const employees = useOrgStore(s => s.employees);
+  const filterOptions = useOrgStore(s => s.filterOptions);
+
+  // Batch export state
+  const [batchExporting, setBatchExporting] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number; label: string } | null>(null);
+
+  // ─── Batch Export Handler ──────────────────────────────────
+  const handleBatchExport = useCallback(async () => {
+    const state = useOrgStore.getState();
+    const { tree, employees, filterOptions, captureChartFn, setFilters, expandAll } = state;
+    if (!tree || !captureChartFn) {
+      alert('Please upload data first.');
+      return;
+    }
+
+    // Build task list
+    const tasks: { title: string; filter: Partial<FilterState> }[] = [];
+
+    // Non-Actuarial departments
+    const departments = filterOptions.departments.filter(d => d !== 'Actuarial');
+    console.log('[BatchExport] Non-Actuarial departments:', departments);
+    for (const dept of departments) {
+      tasks.push({
+        title: dept,
+        filter: { departments: [dept], directReports: [], locations: [], clients: [], experience: [] }
+      });
+    }
+
+    // Actuarial team leads — direct children of MD with dept "Actuarial"
+    const actuarialLeads = findActuarialTeamLeads(tree);
+    console.log('[BatchExport] Actuarial team leads found:', actuarialLeads.map((h: any) => h.name));
+    for (const lead of actuarialLeads) {
+      tasks.push({
+        title: `Actuarial — ${lead.name}'s Team`,
+        filter: { departments: [], directReports: [lead.name], locations: [], clients: [], experience: [] }
+      });
+    }
+
+    console.log('[BatchExport] Total tasks:', tasks.length, tasks.map(t => t.title));
+
+    if (tasks.length === 0) {
+      alert('No departments found to export.');
+      return;
+    }
+
+    setBatchExporting(true);
+    const slides: { title: string; imageData: string }[] = [];
+
+    try {
+      for (let i = 0; i < tasks.length; i++) {
+        setBatchProgress({ current: i + 1, total: tasks.length, label: tasks[i].title });
+
+        // Apply filter for this department/team
+        setFilters(tasks[i].filter);
+        // Expand all nodes
+        expandAll();
+        // Wait for React + ReactFlow to re-render
+        await new Promise(r => setTimeout(r, 2000));
+
+        // Capture the chart
+        const imageData = await captureChartFn();
+        if (imageData) {
+          slides.push({ title: tasks[i].title, imageData });
+        }
+      }
+
+      // Restore filters to show everything
+      setFilters({ departments: [], directReports: [], locations: [], clients: [], experience: [] });
+      await new Promise(r => setTimeout(r, 500));
+
+      // Generate PPT
+      const { generateBatchDeck } = await import('./utils/pptExport');
+      await generateBatchDeck(employees, slides);
+    } catch (err) {
+      console.error('Batch export failed:', err);
+      alert('Export failed. Please try again.');
+      // Restore filters on error too
+      setFilters({ departments: [], directReports: [], locations: [], clients: [], experience: [] });
+    } finally {
+      setBatchExporting(false);
+      setBatchProgress(null);
+    }
+  }, [employees]);
 
   // Show input view if no tree OR if user clicked "Edit Data"
   if (!tree || editingData) {
@@ -280,8 +372,19 @@ const App: React.FC = () => {
 
           <div className="w-px h-6" style={{ background: 'var(--border-primary)' }} />
 
-          {/* Search */}
-          <SearchBar />
+          {/* Download All PPTs button */}
+          <button
+            onClick={handleBatchExport}
+            disabled={batchExporting}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: '#fff' }}
+            title="Auto-generate department-wise PPTs"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+            Download All PPTs
+          </button>
 
           <div className="w-px h-6" style={{ background: 'var(--border-primary)' }} />
 
@@ -316,6 +419,11 @@ const App: React.FC = () => {
 
       {/* Detail Modal */}
       <DetailModal />
+
+      {/* Batch Export Progress Modal */}
+      {batchExporting && batchProgress && (
+        <BatchExportModal progress={batchProgress} />
+      )}
     </div>
   );
 };

@@ -265,13 +265,227 @@ export async function generateDeck(charts: SavedChart[]) {
     });
   });
 
-  // 4. Trigger download using Base64 Data URI (more reliable in some restricted environments than Blobs)
-  const base64 = await pres.write({ outputType: 'base64' }) as string;
-  const dataUri = 'data:application/vnd.openxmlformats-officedocument.presentationml.presentation;base64,' + base64;
-  const a = document.createElement('a');
-  a.href = dataUri;
-  a.download = `Organogram_Badri.pptx`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  // 4. Download using pptxgenjs built-in writeFile (reliable .pptx naming)
+  await pres.writeFile({ fileName: 'Organogram_Badri.pptx' });
+}
+
+// ─── Batch Export: one PPT with all departments ─────────────
+export async function generateBatchDeck(
+  allEmployees: any[],
+  slides: { title: string; imageData: string }[]
+) {
+  if (!slides || slides.length === 0) {
+    alert('No department charts were captured. Please try again.');
+    return;
+  }
+
+  const pres = new pptxgen();
+  pres.layout = 'LAYOUT_16x9';
+
+  const totalEmployees = allEmployees.length;
+
+  const currentDate = new Date();
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const currentMonth = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+
+  // ─── Helpers ──────────────────────────────────────────────
+  function addHeaderBar(slide: any, title: string) {
+    slide.addShape(pres.ShapeType.rect, {
+      x: 0, y: 0, w: '100%', h: 0.08,
+      fill: { color: BRAND_GOLD }
+    });
+    slide.addShape(pres.ShapeType.rect, {
+      x: 0, y: 0.08, w: '100%', h: 0.65,
+      fill: { color: BRAND_BLUE }
+    });
+    slide.addText(title, {
+      x: 0.5, y: 0.10, w: 9, h: 0.55,
+      fontFace: 'Calibri', fontSize: 22, color: 'FFFFFF',
+      bold: true, valign: 'middle'
+    });
+    slide.addShape(pres.ShapeType.rect, {
+      x: 0, y: 0.73, w: '100%', h: 0.04,
+      fill: { color: BRAND_GOLD }
+    });
+  }
+
+  function addFooter(slide: any) {
+    slide.addShape(pres.ShapeType.rect, {
+      x: 0, y: 5.36, w: '100%', h: 0.02,
+      fill: { color: BRAND_GOLD }
+    });
+    slide.addText(`Badri Management Consultancy — ${currentMonth}`, {
+      x: 0.5, y: 5.38, w: 9, h: 0.3,
+      fontFace: 'Calibri', fontSize: 9, color: TEXT_LIGHT,
+      italic: true
+    });
+  }
+
+  // ─── 1. Title Slide ───────────────────────────────────────
+  const titleSlide = pres.addSlide();
+  titleSlide.addShape(pres.ShapeType.rect, {
+    x: 0, y: 0, w: '100%', h: '100%',
+    fill: { color: BRAND_BLUE }
+  });
+  titleSlide.addShape(pres.ShapeType.rect, {
+    x: 0, y: 0, w: '100%', h: 0.12,
+    fill: { color: BRAND_GOLD }
+  });
+  titleSlide.addShape(pres.ShapeType.rect, {
+    x: 0, y: 5.20, w: '100%', h: 0.06,
+    fill: { color: BRAND_GOLD }
+  });
+  titleSlide.addText("BADRI MANAGEMENT CONSULTANCY", {
+    x: 0, y: 1.2, w: '100%', h: 0.6,
+    fontFace: 'Calibri', fontSize: 16, color: BRAND_GOLD,
+    bold: true, align: 'center', charSpacing: 6
+  });
+  titleSlide.addText("Organogram", {
+    x: 0, y: 1.8, w: '100%', h: 1.2,
+    fontFace: 'Calibri', fontSize: 48, color: 'FFFFFF',
+    bold: true, align: 'center'
+  });
+  titleSlide.addShape(pres.ShapeType.rect, {
+    x: 3.5, y: 3.0, w: 3, h: 0.04,
+    fill: { color: BRAND_GOLD }
+  });
+  titleSlide.addText(`${totalEmployees} Employees`, {
+    x: 0, y: 3.3, w: '100%', h: 0.4,
+    fontFace: 'Calibri', fontSize: 16, align: 'center', color: 'B0C6D8',
+    bold: true
+  });
+  titleSlide.addText(`Prepared in ${currentMonth}`, {
+    x: 0, y: 3.8, w: '100%', h: 0.5,
+    fontFace: 'Calibri', fontSize: 14, align: 'center', color: 'B0C6D8'
+  });
+
+  // ─── 2. Experience Summary Slide ──────────────────────────
+  const summarySlide = pres.addSlide();
+  summarySlide.bkgd = BG_LIGHT;
+  addHeaderBar(summarySlide, "Employee Experience Summary");
+  addFooter(summarySlide);
+
+  const expCounts: Record<string, number> = {
+    '< 2 years': 0, '2-4 years': 0, '4-8 years': 0,
+    '8-16 years': 0, '16+ years': 0, 'Unknown': 0
+  };
+  allEmployees.forEach(emp => {
+    const y = emp.yearsOfExperience;
+    if (y === undefined || y === null || typeof y !== 'number' || isNaN(y)) {
+      expCounts['Unknown']++;
+    } else if (y < 2) expCounts['< 2 years']++;
+    else if (y < 4) expCounts['2-4 years']++;
+    else if (y < 8) expCounts['4-8 years']++;
+    else if (y < 16) expCounts['8-16 years']++;
+    else expCounts['16+ years']++;
+  });
+
+  const expColors: Record<string, string> = {
+    '< 2 years': '22c55e', '2-4 years': 'f97316', '4-8 years': '38bdf8',
+    '8-16 years': 'eab308', '16+ years': 'a855f7', 'Unknown': 'cccccc'
+  };
+
+  const tableData: any[][] = [
+    [
+      { text: "Experience Range", options: { bold: true, fill: BRAND_BLUE, color: 'FFFFFF', fontFace: 'Calibri', fontSize: 14, align: 'center', valign: 'middle' } },
+      { text: "No. of Employees", options: { bold: true, fill: BRAND_BLUE, color: 'FFFFFF', fontFace: 'Calibri', fontSize: 14, align: 'center', valign: 'middle' } },
+      { text: "Percentage", options: { bold: true, fill: BRAND_BLUE, color: 'FFFFFF', fontFace: 'Calibri', fontSize: 14, align: 'center', valign: 'middle' } }
+    ]
+  ];
+  let rowIdx = 0;
+  Object.entries(expCounts).forEach(([range, count]) => {
+    if (count > 0 || range !== 'Unknown') {
+      const pct = totalEmployees > 0 ? ((count / totalEmployees) * 100).toFixed(1) + '%' : '0%';
+      const rowFill = rowIdx % 2 === 0 ? 'FFFFFF' : 'EEF2F7';
+      tableData.push([
+        { text: `  ● ${range}`, options: { fontFace: 'Calibri', fontSize: 13, color: expColors[range] || TEXT_DARK, fill: rowFill, bold: true, align: 'left', valign: 'middle' } },
+        { text: count.toString(), options: { fontFace: 'Calibri', fontSize: 13, color: TEXT_DARK, fill: rowFill, bold: true, align: 'center', valign: 'middle' } },
+        { text: pct, options: { fontFace: 'Calibri', fontSize: 13, color: TEXT_MEDIUM, fill: rowFill, align: 'center', valign: 'middle' } }
+      ] as any);
+      rowIdx++;
+    }
+  });
+  summarySlide.addTable(tableData, {
+    x: 1.5, y: 1.2, w: 7, rowH: 0.45,
+    colW: [3, 2, 2],
+    fontFace: 'Calibri', fontSize: 13,
+    border: { pt: 0.5, color: 'D0D5DD' },
+    align: 'center', valign: 'middle'
+  });
+
+  // ─── 3. Experience Legend ─────────────────────────────────
+  const EXP_LEGEND = [
+    { color: '22c55e', label: '< 2 years' },
+    { color: 'f97316', label: '2 – 4 years' },
+    { color: '38bdf8', label: '4 – 8 years' },
+    { color: 'eab308', label: '8 – 16 years' },
+    { color: 'a855f7', label: '16+ years' },
+  ];
+
+  // ─── 4. Chart Slides ─────────────────────────────────────
+  slides.forEach((slideData) => {
+    const slide = pres.addSlide();
+    slide.bkgd = BG_LIGHT;
+    addHeaderBar(slide, slideData.title);
+    addFooter(slide);
+
+    if (slideData.imageData) {
+      slide.addImage({
+        data: slideData.imageData,
+        x: 0.3, y: 0.95, w: 7.8, h: 4.2,
+        sizing: { type: 'contain', w: 7.8, h: 4.2 }
+      });
+    } else {
+      slide.addText("(Image not available)", {
+        x: 0.5, y: 2.5, w: 9, h: 1, align: 'center', color: 'ff0000', fontSize: 14, fontFace: 'Calibri'
+      });
+    }
+
+    // Experience Legend Box
+    const LEGEND_X = 8.4;
+    const LEGEND_Y = 1.0;
+    const LEGEND_W = 1.4;
+    const LEGEND_ITEM_H = 0.28;
+    const LEGEND_HEADER_H = 0.35;
+    const LEGEND_H = LEGEND_HEADER_H + (EXP_LEGEND.length * LEGEND_ITEM_H) + 0.15;
+
+    slide.addShape(pres.ShapeType.rect, {
+      x: LEGEND_X, y: LEGEND_Y, w: LEGEND_W, h: LEGEND_H,
+      fill: { color: 'FFFFFF' },
+      line: { color: 'D0D5DD', width: 0.75 },
+      rectRadius: 0.08,
+      shadow: { type: 'outer', blur: 4, offset: 2, color: '00000020' }
+    });
+    slide.addShape(pres.ShapeType.rect, {
+      x: LEGEND_X, y: LEGEND_Y, w: LEGEND_W, h: LEGEND_HEADER_H,
+      fill: { color: BRAND_DARK },
+      rectRadius: 0.08
+    });
+    slide.addShape(pres.ShapeType.rect, {
+      x: LEGEND_X, y: LEGEND_Y + 0.15, w: LEGEND_W, h: LEGEND_HEADER_H - 0.15,
+      fill: { color: BRAND_DARK }
+    });
+    slide.addText("Experience", {
+      x: LEGEND_X, y: LEGEND_Y + 0.02, w: LEGEND_W, h: LEGEND_HEADER_H - 0.04,
+      fontFace: 'Calibri', fontSize: 9, color: 'FFFFFF',
+      bold: true, align: 'center', valign: 'middle'
+    });
+    EXP_LEGEND.forEach((item, idx) => {
+      const itemY = LEGEND_Y + LEGEND_HEADER_H + 0.08 + (idx * LEGEND_ITEM_H);
+      slide.addShape(pres.ShapeType.rect, {
+        x: LEGEND_X + 0.1, y: itemY + 0.04, w: 0.18, h: 0.15,
+        fill: { color: 'FFFFFF' },
+        line: { color: item.color, width: 2.5 },
+        rectRadius: 0.03
+      });
+      slide.addText(item.label, {
+        x: LEGEND_X + 0.32, y: itemY, w: 1.0, h: 0.24,
+        fontFace: 'Calibri', fontSize: 8, color: TEXT_DARK,
+        bold: true, valign: 'middle'
+      });
+    });
+  });
+
+  // ─── 5. Download using pptxgenjs built-in writeFile ───────
+  await pres.writeFile({ fileName: 'Organogram_Departments_Badri.pptx' });
 }
