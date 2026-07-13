@@ -11,7 +11,7 @@ const TEXT_MEDIUM = '4A4A4A';
 const TEXT_LIGHT = '7A7A7A';
 const BG_LIGHT = 'F5F7FA';
 
-export async function generateDeck(charts: SavedChart[]) {
+export async function generateDeck(charts: SavedChart[], showExperienceLegend: boolean = true) {
   if (!charts || charts.length === 0) {
     alert("No saved charts available to export. Please save at least one chart first.");
     return;
@@ -196,12 +196,17 @@ export async function generateDeck(charts: SavedChart[]) {
     addHeaderBar(slide, chart.title);
     addFooter(slide);
 
-    // Chart Image — use maximum space while leaving room for legend box
+    // Chart Image — maximize available space, adjust based on legend state
+    const imgX = 0.15;
+    const imgY = 0.85;
+    const imgW = 9.7;
+    const imgH = showExperienceLegend ? 4.0 : 4.45;
+
     if (chart.imageData) {
       slide.addImage({
         data: chart.imageData,
-        x: 0.3, y: 0.95, w: 7.8, h: 4.2,
-        sizing: { type: 'contain', w: 7.8, h: 4.2 }
+        x: imgX, y: imgY, w: imgW, h: imgH,
+        sizing: { type: 'contain', w: imgW, h: imgH }
       });
     } else {
       slide.addText("(Image not available. Ensure you saved this chart from the active view.)", {
@@ -209,60 +214,37 @@ export async function generateDeck(charts: SavedChart[]) {
       });
     }
 
-    // ─── Experience Legend Box (top right corner) ──────────────
-    const LEGEND_X = 8.4;
-    const LEGEND_Y = 1.0;
-    const LEGEND_W = 1.4;
-    const LEGEND_ITEM_H = 0.28;
-    const LEGEND_HEADER_H = 0.35;
-    const LEGEND_H = LEGEND_HEADER_H + (EXP_LEGEND.length * LEGEND_ITEM_H) + 0.15;
+    // ─── Horizontal Experience Legend (bottom of the slide) ──────────
+    if (showExperienceLegend) {
+      const LEGEND_Y = 4.95;
+      const START_X = 1.8;
+      const ITEM_W = 1.35;
 
-    // Legend container background
-    slide.addShape(pres.ShapeType.rect, {
-      x: LEGEND_X, y: LEGEND_Y, w: LEGEND_W, h: LEGEND_H,
-      fill: { color: 'FFFFFF' },
-      line: { color: 'D0D5DD', width: 0.75 },
-      rectRadius: 0.08,
-      shadow: { type: 'outer', blur: 4, offset: 2, color: '00000020' }
-    });
-
-    // Legend header
-    slide.addShape(pres.ShapeType.rect, {
-      x: LEGEND_X, y: LEGEND_Y, w: LEGEND_W, h: LEGEND_HEADER_H,
-      fill: { color: BRAND_DARK },
-      rectRadius: 0.08
-    });
-    // Cover bottom corners of the header to make only top rounded
-    slide.addShape(pres.ShapeType.rect, {
-      x: LEGEND_X, y: LEGEND_Y + 0.15, w: LEGEND_W, h: LEGEND_HEADER_H - 0.15,
-      fill: { color: BRAND_DARK }
-    });
-
-    slide.addText("Experience", {
-      x: LEGEND_X, y: LEGEND_Y + 0.02, w: LEGEND_W, h: LEGEND_HEADER_H - 0.04,
-      fontFace: 'Calibri', fontSize: 9, color: 'FFFFFF',
-      bold: true, align: 'center', valign: 'middle'
-    });
-
-    // Legend items
-    EXP_LEGEND.forEach((item, idx) => {
-      const itemY = LEGEND_Y + LEGEND_HEADER_H + 0.08 + (idx * LEGEND_ITEM_H);
-
-      // Color indicator square
-      slide.addShape(pres.ShapeType.rect, {
-        x: LEGEND_X + 0.1, y: itemY + 0.04, w: 0.18, h: 0.15,
-        fill: { color: 'FFFFFF' },
-        line: { color: item.color, width: 2.5 },
-        rectRadius: 0.03
-      });
-
-      // Label
-      slide.addText(item.label, {
-        x: LEGEND_X + 0.32, y: itemY, w: 1.0, h: 0.24,
-        fontFace: 'Calibri', fontSize: 8, color: TEXT_DARK,
+      // Draw the "Experience:" label text
+      slide.addText("Experience:", {
+        x: 0.5, y: LEGEND_Y, w: 1.2, h: 0.25,
+        fontFace: 'Calibri', fontSize: 10, color: TEXT_DARK,
         bold: true, valign: 'middle'
       });
-    });
+
+      EXP_LEGEND.forEach((item, idx) => {
+        const itemX = START_X + (idx * ITEM_W);
+
+        // Color square indicator
+        slide.addShape(pres.ShapeType.rect, {
+          x: itemX, y: LEGEND_Y + 0.05, w: 0.16, h: 0.13,
+          fill: { color: item.color },
+          rectRadius: 0.03
+        });
+
+        // Label text
+        slide.addText(item.label, {
+          x: itemX + 0.22, y: LEGEND_Y, w: 1.0, h: 0.25,
+          fontFace: 'Calibri', fontSize: 9, color: TEXT_MEDIUM,
+          bold: true, valign: 'middle'
+        });
+      });
+    }
   });
 
   // 4. Download using pptxgenjs built-in writeFile (reliable .pptx naming)
@@ -272,7 +254,8 @@ export async function generateDeck(charts: SavedChart[]) {
 // ─── Batch Export: one PPT with all departments ─────────────
 export async function generateBatchDeck(
   allEmployees: any[],
-  slides: { title: string; imageData: string }[]
+  slides: { title: string; imageData: string }[],
+  showExperienceLegend: boolean = true
 ) {
   if (!slides || slides.length === 0) {
     alert('No department charts were captured. Please try again.');
@@ -429,11 +412,17 @@ export async function generateBatchDeck(
     addHeaderBar(slide, slideData.title);
     addFooter(slide);
 
+    // Chart Image — maximize available space, adjust based on legend state
+    const imgX = 0.15;
+    const imgY = 0.85;
+    const imgW = 9.7;
+    const imgH = showExperienceLegend ? 4.0 : 4.45;
+
     if (slideData.imageData) {
       slide.addImage({
         data: slideData.imageData,
-        x: 0.3, y: 0.95, w: 7.8, h: 4.2,
-        sizing: { type: 'contain', w: 7.8, h: 4.2 }
+        x: imgX, y: imgY, w: imgW, h: imgH,
+        sizing: { type: 'contain', w: imgW, h: imgH }
       });
     } else {
       slide.addText("(Image not available)", {
@@ -441,49 +430,37 @@ export async function generateBatchDeck(
       });
     }
 
-    // Experience Legend Box
-    const LEGEND_X = 8.4;
-    const LEGEND_Y = 1.0;
-    const LEGEND_W = 1.4;
-    const LEGEND_ITEM_H = 0.28;
-    const LEGEND_HEADER_H = 0.35;
-    const LEGEND_H = LEGEND_HEADER_H + (EXP_LEGEND.length * LEGEND_ITEM_H) + 0.15;
+    // ─── Horizontal Experience Legend (bottom of the slide) ──────────
+    if (showExperienceLegend) {
+      const LEGEND_Y = 4.95;
+      const START_X = 1.8;
+      const ITEM_W = 1.35;
 
-    slide.addShape(pres.ShapeType.rect, {
-      x: LEGEND_X, y: LEGEND_Y, w: LEGEND_W, h: LEGEND_H,
-      fill: { color: 'FFFFFF' },
-      line: { color: 'D0D5DD', width: 0.75 },
-      rectRadius: 0.08,
-      shadow: { type: 'outer', blur: 4, offset: 2, color: '00000020' }
-    });
-    slide.addShape(pres.ShapeType.rect, {
-      x: LEGEND_X, y: LEGEND_Y, w: LEGEND_W, h: LEGEND_HEADER_H,
-      fill: { color: BRAND_DARK },
-      rectRadius: 0.08
-    });
-    slide.addShape(pres.ShapeType.rect, {
-      x: LEGEND_X, y: LEGEND_Y + 0.15, w: LEGEND_W, h: LEGEND_HEADER_H - 0.15,
-      fill: { color: BRAND_DARK }
-    });
-    slide.addText("Experience", {
-      x: LEGEND_X, y: LEGEND_Y + 0.02, w: LEGEND_W, h: LEGEND_HEADER_H - 0.04,
-      fontFace: 'Calibri', fontSize: 9, color: 'FFFFFF',
-      bold: true, align: 'center', valign: 'middle'
-    });
-    EXP_LEGEND.forEach((item, idx) => {
-      const itemY = LEGEND_Y + LEGEND_HEADER_H + 0.08 + (idx * LEGEND_ITEM_H);
-      slide.addShape(pres.ShapeType.rect, {
-        x: LEGEND_X + 0.1, y: itemY + 0.04, w: 0.18, h: 0.15,
-        fill: { color: 'FFFFFF' },
-        line: { color: item.color, width: 2.5 },
-        rectRadius: 0.03
-      });
-      slide.addText(item.label, {
-        x: LEGEND_X + 0.32, y: itemY, w: 1.0, h: 0.24,
-        fontFace: 'Calibri', fontSize: 8, color: TEXT_DARK,
+      // Draw the "Experience:" label text
+      slide.addText("Experience:", {
+        x: 0.5, y: LEGEND_Y, w: 1.2, h: 0.25,
+        fontFace: 'Calibri', fontSize: 10, color: TEXT_DARK,
         bold: true, valign: 'middle'
       });
-    });
+
+      EXP_LEGEND.forEach((item, idx) => {
+        const itemX = START_X + (idx * ITEM_W);
+
+        // Color square indicator
+        slide.addShape(pres.ShapeType.rect, {
+          x: itemX, y: LEGEND_Y + 0.05, w: 0.16, h: 0.13,
+          fill: { color: item.color },
+          rectRadius: 0.03
+        });
+
+        // Label text
+        slide.addText(item.label, {
+          x: itemX + 0.22, y: LEGEND_Y, w: 1.0, h: 0.25,
+          fontFace: 'Calibri', fontSize: 9, color: TEXT_MEDIUM,
+          bold: true, valign: 'middle'
+        });
+      });
+    }
   });
 
   // ─── 5. Download using pptxgenjs built-in writeFile ───────

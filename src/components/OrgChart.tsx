@@ -36,7 +36,8 @@ const OrgChartInner: React.FC = () => {
   const employees = useOrgStore(s => s.employees);
   const setCaptureChartFn = useOrgStore(s => s.setCaptureChartFn);
   const flowRef = useRef<HTMLDivElement>(null);
-  const [legendOpen, setLegendOpen] = useState(true);
+  const showExperienceLegend = useOrgStore(s => s.showExperienceLegend);
+  const toggleExperienceLegend = useOrgStore(s => s.toggleExperienceLegend);
 
   const hasExpData = useMemo(() =>
     employees.some(e => e.yearsOfExperience !== undefined && e.yearsOfExperience !== null),
@@ -91,7 +92,7 @@ const OrgChartInner: React.FC = () => {
 
     // 1. Calculate tight bounds — accurate because nodes have explicit width/height
     const rawBounds = getNodesBounds(freshNodes);
-    const padding = 60; // Just enough for borders/shadows, no wasted space
+    const padding = 100; // Generous padding for clear, uncramped exports
     const targetWidth = Math.ceil(rawBounds.width + padding * 2);
     const targetHeight = Math.ceil(rawBounds.height + padding * 2);
 
@@ -225,6 +226,7 @@ const OrgChartInner: React.FC = () => {
             <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
           </svg>
         </button>
+
         <div className="w-px h-5 bg-surface-700 mx-1" />
         <button onClick={() => reset()} className="toolbar-btn text-red-400 hover:!text-red-300" title="Upload New File">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -274,7 +276,8 @@ const OrgChartInner: React.FC = () => {
         >
           <div className="flex items-center justify-between px-3 py-2 w-full select-none cursor-inherit">
             <button
-              onClick={(e) => { e.stopPropagation(); setLegendOpen(prev => !prev); }}
+              onClick={(e) => { e.stopPropagation(); toggleExperienceLegend(); }}
+              onPointerDown={(e) => e.stopPropagation()}
               className="flex items-center gap-2 text-left bg-transparent border-none outline-none cursor-pointer p-0"
               title="Toggle legend"
             >
@@ -291,7 +294,7 @@ const OrgChartInner: React.FC = () => {
                 Experience Legend
               </span>
               <svg
-                className={`w-3 h-3 transition-transform ${legendOpen ? 'rotate-180' : ''}`}
+                className={`w-3 h-3 transition-transform ${showExperienceLegend ? 'rotate-180' : ''}`}
                 style={{ color: 'var(--text-muted)' }}
                 fill="none"
                 viewBox="0 0 24 24"
@@ -303,7 +306,7 @@ const OrgChartInner: React.FC = () => {
             </button>
             <div className="text-xs text-surface-500 ml-3 opacity-50">|||</div>
           </div>
-          {legendOpen && (
+          {showExperienceLegend && (
             <div className="px-3 pb-3 pt-1 space-y-1.5 border-t" style={{ borderColor: 'var(--border-secondary)', cursor: 'default' }} onPointerDown={e => e.stopPropagation()}>
               {EXP_LEGEND.map(item => (
                 <div key={item.color} className="flex items-center gap-2.5">

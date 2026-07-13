@@ -127,7 +127,7 @@ const SavedChartsMenu: React.FC = () => {
             {/* Quick PPT Download for current view */}
             <button
               onClick={async () => {
-                const { captureChartFn, tree, employees, filterOptions, chartTitle, orientation } = useOrgStore.getState();
+                const { captureChartFn, tree, employees, filterOptions, chartTitle, orientation, showExperienceLegend } = useOrgStore.getState();
                 if (!tree) return;
                 
                 let dataUrl = undefined;
@@ -147,7 +147,7 @@ const SavedChartsMenu: React.FC = () => {
                   imageData: dataUrl,
                   // @ts-ignore
                   orientation
-                }]);
+                }], showExperienceLegend);
               }}
               className="toolbar-btn text-red-500 hover:!text-red-400"
               title="Download current as PPT"
@@ -225,7 +225,7 @@ const SavedChartsMenu: React.FC = () => {
             <button
               onClick={async () => {
                 const { generateDeck } = await import('./utils/pptExport');
-                generateDeck(savedCharts);
+                generateDeck(savedCharts, useOrgStore.getState().showExperienceLegend);
                 setOpen(false);
               }}
               className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors"
@@ -328,7 +328,7 @@ const App: React.FC = () => {
 
       // Generate PPT
       const { generateBatchDeck } = await import('./utils/pptExport');
-      await generateBatchDeck(employees, slides);
+      await generateBatchDeck(employees, slides, useOrgStore.getState().showExperienceLegend);
     } catch (err) {
       console.error('Batch export failed:', err);
       alert('Export failed. Please try again.');

@@ -20,6 +20,7 @@ interface OrgStore {
   expandedNodes: Set<string>;
   highlightedPath: Set<string>;
   orientation: 'vertical' | 'horizontal';
+  showExperienceLegend: boolean;
 
   // Chart capture function (set by OrgChart component which has ReactFlow context)
   captureChartFn: (() => Promise<string | undefined>) | null;
@@ -44,6 +45,7 @@ interface OrgStore {
   clearHighlight: () => void;
   toggleTheme: () => void;
   setOrientation: (orientation: 'vertical' | 'horizontal') => void;
+  toggleExperienceLegend: () => void;
 }
 
 function collectAllIds(node: TreeNode): string[] {
@@ -105,6 +107,7 @@ export const useOrgStore = create<OrgStore>((set, get) => ({
   expandedNodes: new Set<string>(),
   highlightedPath: new Set<string>(),
   orientation: 'vertical',
+  showExperienceLegend: true,
   captureChartFn: null,
   setCaptureChartFn: (fn) => set({ captureChartFn: fn }),
 
@@ -262,4 +265,6 @@ export const useOrgStore = create<OrgStore>((set, get) => ({
     document.documentElement.classList.toggle('light', next === 'light');
     return { theme: next };
   }),
+
+  toggleExperienceLegend: () => set(state => ({ showExperienceLegend: !state.showExperienceLegend })),
 }));

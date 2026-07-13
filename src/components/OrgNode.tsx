@@ -103,41 +103,42 @@ const OrgNodeComponent: React.FC<NodeProps> = ({ data }) => {
       {/* Dept color bar */}
       <div className="h-1 rounded-t-xl" style={{ background: deptColor }} />
 
-      <div className="px-3 py-2.5">
-        {/* Name + ID */}
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-sm leading-snug whitespace-nowrap flex-shrink-0" style={{ color: primaryTextColor, fontWeight: 800, letterSpacing: '0.02em' }} title={employee.name}>
-            {employee.name}
+      <div className="flex flex-col h-[calc(100%-4px)] p-5 justify-between">
+        {/* Name, ID and Title section */}
+        <div className="flex flex-col gap-1 min-h-0">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[21px] leading-snug truncate flex-1" style={{ color: primaryTextColor, fontWeight: 800, letterSpacing: '0.02em' }} title={employee.name}>
+              {employee.name}
+            </p>
+            {employee.id && employee.id !== 'root' && (
+              <span className="text-[12px] px-2 py-0.5 rounded font-mono flex-shrink-0 font-bold"
+                style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border-secondary)', letterSpacing: '0.03em' }}>
+                #{employee.id}
+              </span>
+            )}
+          </div>
+          <p className="text-[16px] leading-snug truncate" style={{ color: 'var(--text-secondary)', fontWeight: 600, letterSpacing: '0.03em' }} title={employee.title}>
+            {employee.title}
           </p>
-          {employee.id && employee.id !== 'root' && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded font-mono flex-shrink-0 font-bold"
-              style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border-secondary)', letterSpacing: '0.03em' }}>
-              #{employee.id}
-            </span>
-          )}
         </div>
-        {/* Title */}
-        <p className="text-xs mt-1.5 leading-snug whitespace-nowrap flex-shrink-0" style={{ color: 'var(--text-secondary)', fontWeight: 600, letterSpacing: '0.03em' }} title={employee.title}>
-          {employee.title}
-        </p>
 
         {/* Divider */}
-        <div className="mt-2 mb-1.5" style={{ height: '1px', background: 'var(--border-secondary)' }} />
+        <div className="my-2" style={{ height: '1px', background: 'var(--border-secondary)' }} />
 
         {/* Badges row */}
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2">
           {employee.department && (
-            <span className="badge badge--dept text-[11px]" style={{ backgroundColor: `${deptColor}20`, color: deptColor, fontWeight: 700, letterSpacing: '0.02em' }}>
+            <span className="badge badge--dept text-[13px] px-2.5 py-1" style={{ backgroundColor: `${deptColor}20`, color: deptColor, fontWeight: 700, letterSpacing: '0.02em' }}>
               {employee.department}
             </span>
           )}
           {employee.location && (
-            <span className="badge badge--location text-[11px] font-bold" style={{ letterSpacing: '0.02em' }}>
+            <span className="badge badge--location text-[13px] px-2.5 py-1 font-bold" style={{ letterSpacing: '0.02em' }}>
               {employee.location}
             </span>
           )}
           {employee.client && employee.client !== '-' && employee.client !== '—' && (
-            <span className="badge badge--client text-[11px] font-bold" style={{ backgroundColor: '#f59e0b20', color: '#f59e0b', letterSpacing: '0.02em' }}>
+            <span className="badge badge--client text-[13px] px-2.5 py-1 font-bold" style={{ backgroundColor: '#f59e0b20', color: '#f59e0b', letterSpacing: '0.02em' }}>
               {employee.client}
             </span>
           )}
