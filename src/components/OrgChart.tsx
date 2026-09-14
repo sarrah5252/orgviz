@@ -14,18 +14,11 @@ import { toPng } from 'html-to-image';
 import { OrgNode } from './OrgNode';
 import { useTreeLayout } from '../hooks/useTreeLayout';
 import { useOrgStore } from '../store/useOrgStore';
+import { EXP_LEGEND } from '../utils/constants';
 
 const nodeTypes: NodeTypes = {
   orgNode: OrgNode as any,
 };
-
-const EXP_LEGEND = [
-  { color: '#22c55e', label: '< 2 years' },
-  { color: '#f97316', label: '2 – 4 years' },
-  { color: '#38bdf8', label: '4 – 8 years' },
-  { color: '#eab308', label: '8 – 16 years' },
-  { color: '#a855f7', label: '16+ years' },
-];
 
 const OrgChartInner: React.FC = () => {
   const { nodes, edges } = useTreeLayout();

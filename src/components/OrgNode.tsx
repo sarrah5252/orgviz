@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { useOrgStore } from '../store/useOrgStore';
+import { getDeptColor, getExpColor } from '../utils/constants';
 import type { TreeNode } from '../types';
 
 interface OrgNodeData {
@@ -10,46 +11,6 @@ interface OrgNodeData {
   isHighlighted: boolean;
   isSearchMatch: boolean;
   childCount: number;
-}
-
-const DEPT_COLORS: Record<string, string> = {
-  'Executive': '#8b5cf6',
-  'Underwriting': '#ec4899',
-  'Claims': '#f97316',
-  'Sales & Distribution': '#06b6d4',
-  'Actuarial': '#14b8a6',
-  'Finance & Accounting': '#eab308',
-  'Information Technology': '#3b82f6',
-  'Human Resources': '#a855f7',
-  'Risk Management': '#ef4444',
-  'Compliance & Legal': '#64748b',
-  'Marketing': '#f43f5e',
-  'Customer Service': '#22c55e',
-  'Internal Audit': '#78716c',
-  'Product Development': '#0ea5e9',
-  'Administration': '#6b7280',
-  'Operations': '#8b5cf6',
-  'General': '#64748b',
-};
-
-function getDeptColor(dept: string): string {
-  return DEPT_COLORS[dept] || '#64748b';
-}
-
-// ─── Experience-based color scheme ───────────────────────────
-interface ExpColor {
-  bg: string;
-  text: string;
-  label: string;
-}
-
-function getExpColor(years: number | undefined): ExpColor | null {
-  if (years === undefined || years === null) return null;
-  if (years < 2) return { bg: '#22c55e', text: '#052e16', label: '< 2 yrs' };          // Green
-  if (years < 4) return { bg: '#f97316', text: '#431407', label: '2-4 yrs' };           // Orange
-  if (years < 8) return { bg: '#38bdf8', text: '#0c4a6e', label: '4-8 yrs' };           // Light blue
-  if (years < 16) return { bg: '#eab308', text: '#422006', label: '8-16 yrs' };         // Yellow
-  return { bg: '#a855f7', text: '#3b0764', label: '16+ yrs' };                           // Purple
 }
 
 const OrgNodeComponent: React.FC<NodeProps> = ({ data }) => {

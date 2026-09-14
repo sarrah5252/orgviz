@@ -162,7 +162,6 @@ export const useOrgStore = create<OrgStore>((set, get) => ({
       filters: filterOptions,
       createdAt: Date.now(),
       imageData,
-      // @ts-ignore - extending SavedChart type for orientation
       orientation: get().orientation
     };
     const updated = [chart, ...savedCharts];
@@ -188,7 +187,6 @@ export const useOrgStore = create<OrgStore>((set, get) => ({
       expandedNodes: expanded,
       highlightedPath: new Set(),
       editingData: false,
-      // @ts-ignore - orientation might not be in old saved charts
       orientation: chart.orientation || 'vertical',
     });
   },

@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { toPng } from 'html-to-image';
 import { useOrgStore } from './store/useOrgStore';
 import { FileUpload } from './components/FileUpload';
 import { OrgChart } from './components/OrgChart';
@@ -145,7 +144,6 @@ const SavedChartsMenu: React.FC = () => {
                   filters: filterOptions,
                   createdAt: Date.now(),
                   imageData: dataUrl,
-                  // @ts-ignore
                   orientation
                 }], showExperienceLegend);
               }}

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { Node, Edge } from '@xyflow/react';
 import type { TreeNode, FilterState } from '../types';
 import { useOrgStore } from '../store/useOrgStore';
+import { getExpRange } from '../utils/constants';
 
 const NODE_WIDTH = 500;
 const NODE_HEIGHT = 175;
@@ -25,15 +26,6 @@ function filterTree(node: TreeNode, filters: FilterState, depth = 0): TreeNode |
   const filteredChildren = node.children
     .map(child => filterTree(child, filters, depth + 1))
     .filter(Boolean) as TreeNode[];
-
-  function getExpRange(y: number | undefined | null) {
-    if (y === undefined || y === null) return null;
-    if (y < 2) return '< 2 years';
-    if (y < 4) return '2-4 years';
-    if (y < 8) return '4-8 years';
-    if (y < 16) return '8-16 years';
-    return '16+ years';
-  }
 
   const expRange = getExpRange(node.yearsOfExperience);
 

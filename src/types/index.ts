@@ -45,4 +45,5 @@ export interface SavedChart {
   filters: FilterOptions;
   createdAt: number;
   imageData?: string;
+  orientation?: 'vertical' | 'horizontal';
 }

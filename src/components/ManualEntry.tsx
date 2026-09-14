@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useOrgStore } from '../store/useOrgStore';
+import { getExpRange } from '../utils/constants';
 
 interface RowData {
   empId: string;
@@ -224,20 +225,11 @@ export const ManualEntry: React.FC = () => {
       const clients = new Set<string>();
       const experiences = new Set<string>();
 
-      function getExperienceRange(y: number | undefined) {
-        if (y === undefined || y === null || isNaN(y)) return null;
-        if (y < 2) return '< 2 years';
-        if (y < 4) return '2-4 years';
-        if (y < 8) return '4-8 years';
-        if (y < 16) return '8-16 years';
-        return '16+ years';
-      }
-
       employees.forEach(emp => {
         if (emp.department) departments.add(emp.department);
         if (emp.location) locations.add(emp.location);
         if (emp.client && emp.client !== '—') clients.add(emp.client);
-        const expRange = getExperienceRange(emp.yearsOfExperience);
+        const expRange = getExpRange(emp.yearsOfExperience);
         if (expRange) experiences.add(expRange);
       });
 
