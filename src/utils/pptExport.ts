@@ -1,6 +1,7 @@
 import pptxgen from 'pptxgenjs';
-import type { SavedChart, Employee } from '../types';
+import type { SavedChart, Employee, TreeNode, FilterState } from '../types';
 import { EXP_LEGEND, getExpRange } from './constants';
+import { buildOrgSlides, fitScale, type OrgSlideLayout } from './orgSlideLayout';
 
 // ─── Badri Brand Colors ──────────────────────────────────────
 const BRAND_BLUE = '135C8B';
@@ -29,31 +30,27 @@ function getCurrentMonth(): string {
 
 function addHeaderBar(pres: pptxgen, slide: pptxgen.Slide, title: string) {
   slide.addShape(pres.ShapeType.rect, {
-    x: 0, y: 0, w: '100%', h: 0.08,
-    fill: { color: BRAND_GOLD }
-  });
-  slide.addShape(pres.ShapeType.rect, {
-    x: 0, y: 0.08, w: '100%', h: 0.65,
+    x: 0, y: 0, w: '100%', h: 0.68,
     fill: { color: BRAND_BLUE }
   });
   slide.addText(title, {
-    x: 0.5, y: 0.10, w: 9, h: 0.55,
+    x: 0.5, y: 0.06, w: 9, h: 0.56,
     fontFace: 'Calibri', fontSize: 22, color: 'FFFFFF',
     bold: true, valign: 'middle'
   });
   slide.addShape(pres.ShapeType.rect, {
-    x: 0, y: 0.73, w: '100%', h: 0.04,
+    x: 0, y: 0.68, w: '100%', h: 0.03,
     fill: { color: BRAND_GOLD }
   });
 }
 
-function addFooter(pres: pptxgen, slide: pptxgen.Slide, currentMonth: string) {
+function addFooter(pres: pptxgen, slide: pptxgen.Slide, currentMonth: string, textWidth = 9) {
   slide.addShape(pres.ShapeType.rect, {
     x: 0, y: 5.36, w: '100%', h: 0.02,
     fill: { color: BRAND_GOLD }
   });
-  slide.addText(`Badri Management Consultancy — ${currentMonth}`, {
-    x: 0.5, y: 5.38, w: 9, h: 0.3,
+  slide.addText(`Badri Consultancy — ${currentMonth}`, {
+    x: 0.5, y: 5.38, w: textWidth, h: 0.3,
     fontFace: 'Calibri', fontSize: 9, color: TEXT_LIGHT,
     italic: true
   });
@@ -345,49 +342,162 @@ function addHeadcountSlide(pres: pptxgen, employees: Employee[], currentMonth: s
   });
 }
 
-function addChartSlide(
+// ─── Native Org Chart Slides ───────────────────────────────────
+
+const CHART_AREA = { x: 0.3, y: 0.92, w: 9.4, h: 4.36 };
+const CARD_TEXT_DARK = '1F2937';
+const CARD_TEXT_SUB = '4B6584';
+const CARD_TEXT_META = '6B7280';
+const CONNECTOR_COLOR = '9AA5B1';
+const GROUP_FILL = 'ECEFF4';
+const GROUP_LINE = 'C3CAD5';
+const LINK_DASH_COLOR = '6B7280';
+
+/** Legend on the footer row: "Experience: ■ < 2 yrs …  ⬚ Reports-to link" (right-aligned) */
+function addChartLegendFooter(pres: pptxgen, slide: pptxgen.Slide) {
+  const Y = 5.4;
+  const H = 0.24;
+  const FONT = 8;
+  const SW = 0.13; // swatch size
+  const labelW = (t: string) => t.length * FONT * 0.5 / 72 + 0.08;
+
+  const items = EXP_LEGEND.map(i => ({ color: i.hexColor, label: i.label, w: SW + 0.05 + labelW(i.label) + 0.1 }));
+  const linkLabel = 'Reports-to link';
+  const linkW = SW + 0.05 + labelW(linkLabel);
+  const headW = 0.72;
+  const total = headW + items.reduce((s, i) => s + i.w, 0) + 0.1 + linkW;
+  let x = 9.75 - total;
+
+  slide.addText('Experience:', {
+    x, y: Y, w: headW, h: H, fontFace: 'Calibri', fontSize: FONT, bold: true,
+    color: TEXT_DARK, valign: 'middle', margin: 0,
+  });
+  x += headW;
+
+  items.forEach(item => {
+    slide.addShape(pres.ShapeType.rect, {
+      x, y: Y + (H - SW) / 2, w: SW, h: SW, fill: { color: item.color }, line: { color: item.color, width: 0.5 },
+    });
+    slide.addText(item.label, {
+      x: x + SW + 0.05, y: Y, w: item.w - SW - 0.05, h: H, fontFace: 'Calibri', fontSize: FONT,
+      color: TEXT_MEDIUM, bold: true, valign: 'middle', margin: 0,
+    });
+    x += item.w;
+  });
+
+  x += 0.1;
+  slide.addShape(pres.ShapeType.rect, {
+    x, y: Y + (H - SW) / 2, w: SW, h: SW, fill: { color: 'FFFFFF' },
+    line: { color: LINK_DASH_COLOR, width: 0.75, dashType: 'dash' },
+  });
+  slide.addText(linkLabel, {
+    x: x + SW + 0.05, y: Y, w: linkW - SW - 0.05, h: H, fontFace: 'Calibri', fontSize: FONT,
+    color: TEXT_MEDIUM, bold: true, valign: 'middle', margin: 0,
+  });
+}
+
+/** Draws a computed org layout as editable PowerPoint shapes inside CHART_AREA. */
+function renderOrgLayout(pres: pptxgen, slide: pptxgen.Slide, layout: OrgSlideLayout) {
+  const s = fitScale(layout, CHART_AREA.w, CHART_AREA.h);
+  const ox = CHART_AREA.x + (CHART_AREA.w - layout.width * s) / 2;
+  const oy = CHART_AREA.y + Math.max(0, (CHART_AREA.h - layout.height * s) / 2) * 0.35; // slightly top-weighted
+  const X = (v: number) => ox + v * s;
+  const Y = (v: number) => oy + v * s;
+  const pt = (v: number) => Math.max(3.8, Math.round(v * s * 10) / 10);
+
+  // 1. Group boxes (Management)
+  layout.groups.forEach(g => {
+    slide.addShape(pres.ShapeType.roundRect, {
+      x: X(g.x), y: Y(g.y), w: g.w * s, h: g.h * s,
+      fill: { color: 'F4F6F9' }, line: { color: 'B0B8C4', width: 0.75, dashType: 'dash' },
+      rectRadius: 0.06 * s,
+    });
+    slide.addText(g.label, {
+      x: X(g.x), y: Y(g.y - g.labelH), w: Math.max(g.w * s, 1), h: g.labelH * s,
+      fontFace: 'Calibri', fontSize: pt(layout.fonts.label), bold: true, color: '7A869A',
+      valign: 'bottom', margin: 0, charSpacing: 0.5,
+    });
+  });
+
+  // 2. Connectors (drawn before cards so they sit underneath)
+  layout.lines.forEach(l => {
+    slide.addShape(pres.ShapeType.line, {
+      x: X(Math.min(l.x1, l.x2)), y: Y(Math.min(l.y1, l.y2)),
+      w: Math.abs(l.x2 - l.x1) * s, h: Math.abs(l.y2 - l.y1) * s,
+      line: { color: CONNECTOR_COLOR, width: 0.75 },
+    });
+  });
+
+  // 3. Employee cards (one editable shape each)
+  const borderW = s < 0.75 ? 1.25 : 1.75;
+  layout.cards.forEach(c => {
+    const runs: pptxgen.TextProps[] = [
+      { text: c.name, options: { bold: true, fontSize: pt(layout.fonts.name), color: CARD_TEXT_DARK, breakLine: true } },
+      { text: c.title || ' ', options: { fontSize: pt(layout.fonts.title), color: CARD_TEXT_SUB, breakLine: true } },
+      { text: c.meta || ' ', options: { fontSize: pt(layout.fonts.meta), color: CARD_TEXT_META } },
+    ];
+    slide.addText(runs, {
+      shape: pres.ShapeType.roundRect,
+      x: X(c.x), y: Y(c.y), w: c.w * s, h: c.h * s,
+      fill: { color: 'FFFFFF' },
+      line: { color: c.borderColor, width: borderW, dashType: c.dashed ? 'dash' : 'solid' },
+      rectRadius: 0.05 * s,
+      fontFace: 'Calibri',
+      valign: 'top', align: 'left',
+      margin: Math.max(2, 5.5 * s),
+      lineSpacingMultiple: 0.95,
+      paraSpaceAfter: 0,
+    });
+  });
+}
+
+function addOrgChartSlides(
   pres: pptxgen,
   title: string,
-  imageData: string | undefined,
+  tree: TreeNode,
+  filters: FilterState | undefined,
   showExperienceLegend: boolean,
   currentMonth: string,
-  noImageMessage = "(Image not available. Ensure you saved this chart from the active view.)"
 ) {
-  const slide = pres.addSlide();
-  slide.bkgd = BG_LIGHT;
-
-  addHeaderBar(pres, slide, title);
-  addFooter(pres, slide, currentMonth);
-
-  const imgX = 0.15;
-  const imgY = 0.85;
-  const imgW = 9.7;
-  const imgH = showExperienceLegend ? 4.0 : 4.45;
-
-  if (imageData) {
-    slide.addImage({
-      data: imageData,
-      x: imgX, y: imgY, w: imgW, h: imgH,
-      sizing: { type: 'contain', w: imgW, h: imgH }
+  const pages = buildOrgSlides(tree, filters, CHART_AREA.w, CHART_AREA.h);
+  if (pages.length === 0) {
+    const slide = pres.addSlide();
+    slide.bkgd = BG_LIGHT;
+    addHeaderBar(pres, slide, title);
+    addFooter(pres, slide, currentMonth);
+    slide.addText('(No employees match this view)', {
+      x: 0.5, y: 2.5, w: 9, h: 1, align: 'center', color: TEXT_LIGHT, fontSize: 14, fontFace: 'Calibri'
     });
-  } else {
-    slide.addText(noImageMessage, {
-      x: 0.5, y: 2.5, w: 9, h: 1, align: 'center', color: 'ff0000', fontSize: 14, fontFace: 'Calibri'
-    });
+    return;
   }
 
-  if (showExperienceLegend) {
-    addExperienceLegend(pres, slide);
-  }
+  pages.forEach(page => {
+    const slide = pres.addSlide();
+    slide.bkgd = BG_LIGHT;
+    const suffix = page.pageCount > 1 ? ` (${page.pageIndex + 1}/${page.pageCount})` : '';
+    addHeaderBar(pres, slide, `${title}${suffix}`);
+    addFooter(pres, slide, currentMonth, showExperienceLegend ? 3.2 : 9);
+    renderOrgLayout(pres, slide, page.layout);
+    if (showExperienceLegend) addChartLegendFooter(pres, slide);
+  });
 }
 
 // ─── Public Exports ─────────────────────────────────────────
 
-export async function generateDeck(charts: SavedChart[], showExperienceLegend: boolean = true) {
+export type ProgressCallback = (info: { stage: string; percent: number; current?: number; total?: number; done?: boolean }) => void;
+
+export async function generateDeck(
+  charts: SavedChart[],
+  showExperienceLegend: boolean = true,
+  onProgress?: ProgressCallback,
+) {
   if (!charts || charts.length === 0) {
     alert("No saved charts available to export. Please save at least one chart first.");
     return;
   }
+
+  onProgress?.({ stage: 'Initializing PowerPoint deck...', percent: 10 });
+  await new Promise(r => setTimeout(r, 40));
 
   const pres = new pptxgen();
   pres.layout = 'LAYOUT_16x9';
@@ -396,33 +506,57 @@ export async function generateDeck(charts: SavedChart[], showExperienceLegend: b
   const currentMonth = getCurrentMonth();
 
   // 1. Title Slide
+  onProgress?.({ stage: 'Creating title slide...', percent: 22 });
   addTitleSlide(pres, mainEmployees.length, currentMonth);
+  await new Promise(r => setTimeout(r, 20));
 
   // 2. Experience Summary
+  onProgress?.({ stage: 'Building experience breakdown...', percent: 36 });
   addExperienceSummarySlide(pres, mainEmployees, currentMonth);
+  await new Promise(r => setTimeout(r, 20));
 
   // 3. Headcount & Experience Distribution
+  onProgress?.({ stage: 'Generating headcount distribution...', percent: 48 });
   addHeadcountSlide(pres, mainEmployees, currentMonth);
+  await new Promise(r => setTimeout(r, 20));
 
-  // 4. Chart Slides
-  charts.forEach(chart => {
-    addChartSlide(pres, chart.title, chart.imageData, showExperienceLegend, currentMonth);
-  });
+  // 4. Chart Slides (native shapes)
+  const totalCharts = charts.length;
+  for (let idx = 0; idx < totalCharts; idx++) {
+    const chart = charts[idx];
+    const pct = Math.round(50 + ((idx + 1) / totalCharts) * 40);
+    onProgress?.({
+      stage: `Formatting chart: ${chart.title}`,
+      percent: pct,
+      current: idx + 1,
+      total: totalCharts,
+    });
+    await new Promise(r => setTimeout(r, 30));
+    addOrgChartSlides(pres, chart.title, chart.tree, chart.activeFilters, showExperienceLegend, currentMonth);
+  }
 
   // 5. Download
+  onProgress?.({ stage: 'Packaging PowerPoint file (.pptx)...', percent: 94 });
+  await new Promise(r => setTimeout(r, 40));
   await pres.writeFile({ fileName: 'Organogram_Badri.pptx' });
+  onProgress?.({ stage: 'Presentation downloaded successfully!', percent: 100, done: true });
 }
 
 // ─── Batch Export: one PPT with all departments ─────────────
 export async function generateBatchDeck(
+  tree: TreeNode,
   allEmployees: Employee[],
-  slides: { title: string; imageData: string }[],
-  showExperienceLegend: boolean = true
+  tasks: { title: string; filter: FilterState }[],
+  showExperienceLegend: boolean = true,
+  onProgress?: ProgressCallback,
 ) {
-  if (!slides || slides.length === 0) {
-    alert('No department charts were captured. Please try again.');
+  if (!tasks || tasks.length === 0) {
+    alert('No departments found to export.');
     return;
   }
+
+  onProgress?.({ stage: 'Initializing department deck...', percent: 5 });
+  await new Promise(r => setTimeout(r, 40));
 
   const pres = new pptxgen();
   pres.layout = 'LAYOUT_16x9';
@@ -430,6 +564,7 @@ export async function generateBatchDeck(
   const currentMonth = getCurrentMonth();
 
   // 1. Title Slide
+  onProgress?.({ stage: 'Creating presentation title slide...', percent: 12 });
   addTitleSlide(pres, allEmployees.length, currentMonth, {
     subtitle: `${allEmployees.length} Employees`,
     subtitleFontSize: 16,
@@ -437,18 +572,36 @@ export async function generateBatchDeck(
     subtitleHeight: 0.4,
     preparedY: 3.8,
   });
+  await new Promise(r => setTimeout(r, 20));
 
   // 2. Experience Summary
+  onProgress?.({ stage: 'Compiling experience summary...', percent: 20 });
   addExperienceSummarySlide(pres, allEmployees, currentMonth);
+  await new Promise(r => setTimeout(r, 20));
 
   // 3. Headcount & Experience Distribution
+  onProgress?.({ stage: 'Computing headcount distribution...', percent: 28 });
   addHeadcountSlide(pres, allEmployees, currentMonth);
+  await new Promise(r => setTimeout(r, 20));
 
-  // 4. Chart Slides
-  slides.forEach(slideData => {
-    addChartSlide(pres, slideData.title, slideData.imageData, showExperienceLegend, currentMonth, "(Image not available)");
-  });
+  // 4. Chart Slides (native shapes)
+  const totalTasks = tasks.length;
+  for (let idx = 0; idx < totalTasks; idx++) {
+    const task = tasks[idx];
+    const pct = Math.round(28 + ((idx + 1) / totalTasks) * 62);
+    onProgress?.({
+      stage: `Building slide: ${task.title}`,
+      percent: pct,
+      current: idx + 1,
+      total: totalTasks,
+    });
+    await new Promise(r => setTimeout(r, 30));
+    addOrgChartSlides(pres, task.title, tree, task.filter, showExperienceLegend, currentMonth);
+  }
 
   // 5. Download
+  onProgress?.({ stage: 'Packaging PowerPoint file (.pptx)...', percent: 94 });
+  await new Promise(r => setTimeout(r, 40));
   await pres.writeFile({ fileName: 'Organogram_Departments_Badri.pptx' });
+  onProgress?.({ stage: 'Presentation downloaded successfully!', percent: 100, done: true });
 }

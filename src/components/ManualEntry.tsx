@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useOrgStore } from '../store/useOrgStore';
-import { getExpRange } from '../utils/constants';
+import { parseExperienceYears, totalExperienceYears, getExpRange } from '../utils/constants';
 
 interface RowData {
   empId: string;
@@ -9,12 +9,12 @@ interface RowData {
   department: string;
   managerId: string;
   location: string;
-  client: string;
-  yearsExp: string;
+  expOutside: string;
+  expAtBadri: string;
 }
 
-const COLUMN_KEYS: (keyof RowData)[] = ['empId', 'name', 'title', 'department', 'managerId', 'location', 'client', 'yearsExp'];
-const COLUMN_LABELS = ['Emp ID', 'Name', 'Job Title', 'Department', 'Reports To', 'Location', 'Client', 'Years Exp.'];
+const COLUMN_KEYS: (keyof RowData)[] = ['empId', 'name', 'title', 'department', 'managerId', 'location', 'expOutside', 'expAtBadri'];
+const COLUMN_LABELS = ['Employee ID', 'Name', 'Job Title', 'Department', 'Reports To', 'Location', 'Exp Outside Badri', 'Total Exp at Badri'];
 
 const EMPTY_ROW = (): RowData => ({
   empId: '',
@@ -23,8 +23,8 @@ const EMPTY_ROW = (): RowData => ({
   department: '',
   managerId: '',
   location: '',
-  client: '',
-  yearsExp: '',
+  expOutside: '',
+  expAtBadri: '',
 });
 
 export const ManualEntry: React.FC = () => {
@@ -79,7 +79,7 @@ export const ManualEntry: React.FC = () => {
     if (!text) return;
 
     // Parse TSV/CSV — Excel copies as tab-separated
-    const lines = text.split(/\r?\n/).filter(line => line.trim());
+    let lines = text.split(/\r?\n/).filter(line => line.trim());
     if (lines.length === 0) return;
 
     // Check if this looks like multi-cell data (has tabs or multiple lines)
@@ -87,6 +87,16 @@ export const ManualEntry: React.FC = () => {
     if (!hasMultipleCells) return; // let normal typing handle single values
 
     e.preventDefault();
+
+    // Auto-detect and skip header row if user selected headers in Excel
+    const firstLineLower = lines[0].toLowerCase();
+    if (
+      (firstLineLower.includes('employee') || firstLineLower.includes('name')) &&
+      (firstLineLower.includes('title') || firstLineLower.includes('department') || firstLineLower.includes('report') || firstLineLower.includes('experience'))
+    ) {
+      lines = lines.slice(1);
+    }
+    if (lines.length === 0) return;
 
     const startRow = activeCell?.row ?? 0;
     const startCol = activeCell?.col ?? 0;
@@ -170,7 +180,10 @@ export const ManualEntry: React.FC = () => {
     try {
       let autoId = 1;
       const employees = validRows.map(r => {
-        const yoe = parseFloat(r.yearsExp.trim());
+        const expOutside = parseExperienceYears(r.expOutside.trim());
+        const expBadri = parseExperienceYears(r.expAtBadri.trim());
+        const total = totalExperienceYears(r.expOutside.trim(), r.expAtBadri.trim());
+
         return {
           id: r.empId.trim() || String(autoId++),
           name: r.name.trim(),
@@ -178,9 +191,11 @@ export const ManualEntry: React.FC = () => {
           department: r.department.trim(),
           managerId: r.managerId.trim(),
           location: r.location.trim(),
-          client: r.client.trim(),
+          client: '',
           employmentType: '',
-          yearsOfExperience: isNaN(yoe) ? undefined : yoe,
+          yearsOfExperience: total,
+          expOutsideBadri: expOutside,
+          expAtBadri: expBadri,
         };
       });
 

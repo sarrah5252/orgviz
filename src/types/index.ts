@@ -7,7 +7,9 @@ export interface Employee {
   location: string;
   client: string;
   employmentType: string;
-  yearsOfExperience?: number;
+  yearsOfExperience?: number; // total = outside Badri + at Badri
+  expOutsideBadri?: number;
+  expAtBadri?: number;
   secondaryManagerIds?: string[];
 }
 
@@ -46,4 +48,5 @@ export interface SavedChart {
   createdAt: number;
   imageData?: string;
   orientation?: 'vertical' | 'horizontal';
+  activeFilters?: FilterState;
 }

@@ -1,6 +1,16 @@
 import { create } from 'zustand';
 import type { TreeNode, Employee, FilterOptions, FilterState, OrgData, SavedChart } from '../types';
 
+export interface ExportProgress {
+  isExporting: boolean;
+  title: string;
+  stage: string;
+  current?: number;
+  total?: number;
+  percent: number;
+  done?: boolean;
+}
+
 interface OrgStore {
   // Data
   tree: TreeNode | null;
@@ -21,6 +31,10 @@ interface OrgStore {
   highlightedPath: Set<string>;
   orientation: 'vertical' | 'horizontal';
   showExperienceLegend: boolean;
+
+  // Export progress overlay state
+  exportProgress: ExportProgress | null;
+  setExportProgress: (progress: ExportProgress | null) => void;
 
   // Chart capture function (set by OrgChart component which has ReactFlow context)
   captureChartFn: (() => Promise<string | undefined>) | null;
@@ -74,6 +88,12 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
+export function defaultTitleFor(filters: FilterState): string {
+  if (filters.departments.length > 0) return filters.departments.join(', ');
+  if (filters.directReports && filters.directReports.length > 0) return `${filters.directReports.join(', ')} — Team`;
+  return `Chart — ${new Date().toLocaleDateString()}`;
+}
+
 // Load saved charts from localStorage
 function loadSavedCharts(): SavedChart[] {
   try {
@@ -108,6 +128,8 @@ export const useOrgStore = create<OrgStore>((set, get) => ({
   highlightedPath: new Set<string>(),
   orientation: 'vertical',
   showExperienceLegend: true,
+  exportProgress: null,
+  setExportProgress: (p) => set({ exportProgress: p }),
   captureChartFn: null,
   setCaptureChartFn: (fn) => set({ captureChartFn: fn }),
 
@@ -152,17 +174,24 @@ export const useOrgStore = create<OrgStore>((set, get) => ({
   setEditingData: (editing) => set({ editingData: editing }),
 
   saveChart: (imageData?: string) => {
-    const { tree, employees, filterOptions, chartTitle, savedCharts } = get();
+    const { tree, employees, filterOptions, chartTitle, savedCharts, activeFilters } = get();
     if (!tree) return;
     const chart: SavedChart = {
       id: generateId(),
-      title: chartTitle || `Chart — ${new Date().toLocaleDateString()}`,
+      title: chartTitle || defaultTitleFor(activeFilters),
       tree,
       employees,
       filters: filterOptions,
       createdAt: Date.now(),
       imageData,
-      orientation: get().orientation
+      orientation: get().orientation,
+      activeFilters: {
+        departments: [...activeFilters.departments],
+        directReports: [...(activeFilters.directReports || [])],
+        locations: [...activeFilters.locations],
+        clients: [...activeFilters.clients],
+        experience: [...activeFilters.experience],
+      },
     };
     const updated = [chart, ...savedCharts];
     persistCharts(updated);

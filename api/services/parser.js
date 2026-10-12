@@ -1,10 +1,18 @@
 import XLSX from 'xlsx';
+import { totalExperienceYears, parseExperienceYears } from './experience.js';
 
 // Map of possible column header variations → normalized field names
 const HEADER_MAP = {
+  'employee': 'id',
   'employee id': 'id',
   'employeeid': 'id',
+  'employee no': 'id',
+  'employee no.': 'id',
+  'employee number': 'id',
+  'employee code': 'id',
   'emp id': 'id',
+  'emp no': 'id',
+  'emp code': 'id',
   'id': 'id',
   'name': 'name',
   'employee name': 'name',
@@ -40,12 +48,29 @@ const HEADER_MAP = {
   'exp': 'yearsOfExperience',
   'tenure': 'yearsOfExperience',
   'years': 'yearsOfExperience',
+  // Badri experience split (total = outside + at Badri)
+  'experience outside badri': 'expOutsideBadri',
+  'outside badri experience': 'expOutsideBadri',
+  'experience outside': 'expOutsideBadri',
+  'outside experience': 'expOutsideBadri',
+  'prior experience': 'expOutsideBadri',
+  'previous experience': 'expOutsideBadri',
+  'total experience at badri': 'expAtBadri',
+  'experience at badri': 'expAtBadri',
+  'badri experience': 'expAtBadri',
+  'tenure at badri': 'expAtBadri',
+  'total badri experience': 'expAtBadri',
 };
 
 function normalizeHeaders(rawHeaders) {
   const mapping = {};
   for (const header of rawHeaders) {
-    const key = String(header).toLowerCase().trim().replace(/[_\-]/g, ' ');
+    const key = String(header)
+      .replace(/\u00a0/g, ' ')
+      .toLowerCase()
+      .replace(/[_\-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
     if (HEADER_MAP[key]) {
       mapping[header] = HEADER_MAP[key];
     }
@@ -57,7 +82,8 @@ export function parseFile(buffer, ext) {
   const workbook = XLSX.read(buffer, { type: 'buffer' });
   const sheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
-  const rawData = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+  // raw: false → values as displayed in Excel (keeps leading zeros on IDs like "01")
+  const rawData = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
 
   if (!rawData.length) return [];
 
@@ -87,11 +113,17 @@ export function parseFile(buffer, ext) {
       yearsOfExperience: undefined,
     };
 
+    let rawOutside;
+    let rawAtBadri;
+
     for (const [rawHeader, normalizedField] of Object.entries(headerMapping)) {
       const value = String(row[rawHeader] || '').trim();
       if (normalizedField === 'yearsOfExperience') {
-        const num = parseFloat(value);
-        employee.yearsOfExperience = isNaN(num) ? undefined : num;
+        employee.yearsOfExperience = parseExperienceYears(value);
+      } else if (normalizedField === 'expOutsideBadri') {
+        rawOutside = value;
+      } else if (normalizedField === 'expAtBadri') {
+        rawAtBadri = value;
       } else if (normalizedField === 'managerId') {
         // Split by comma or semicolon for multiple managers
         const parts = value.split(/[,;]+/).map(p => p.trim()).filter(Boolean);
@@ -102,6 +134,14 @@ export function parseFile(buffer, ext) {
       } else {
         employee[normalizedField] = value;
       }
+    }
+
+    // Total experience (outside + at Badri) drives the colour coding
+    if (rawOutside !== undefined || rawAtBadri !== undefined) {
+      employee.expOutsideBadri = parseExperienceYears(rawOutside);
+      employee.expAtBadri = parseExperienceYears(rawAtBadri);
+      const total = totalExperienceYears(rawOutside, rawAtBadri);
+      if (total !== undefined) employee.yearsOfExperience = total;
     }
 
     // Auto-gen ID if missing

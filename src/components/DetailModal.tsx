@@ -106,7 +106,13 @@ export const DetailModal: React.FC = () => {
               <InfoCard label="Client" value={emp.client && emp.client !== '—' ? emp.client : '—'} />
               <InfoCard label="Employee ID" value={emp.id} />
               {emp.yearsOfExperience !== undefined && emp.yearsOfExperience !== null && (
-                <InfoCard label="Years of Experience" value={`${emp.yearsOfExperience} year${emp.yearsOfExperience !== 1 ? 's' : ''}`} />
+                <InfoCard label="Total Experience" value={`${emp.yearsOfExperience} year${emp.yearsOfExperience !== 1 ? 's' : ''}`} />
+              )}
+              {emp.expOutsideBadri !== undefined && emp.expOutsideBadri !== null && (
+                <InfoCard label="Exp. Outside Badri" value={`${emp.expOutsideBadri} year${emp.expOutsideBadri !== 1 ? 's' : ''}`} />
+              )}
+              {emp.expAtBadri !== undefined && emp.expAtBadri !== null && (
+                <InfoCard label="Exp. at Badri" value={`${emp.expAtBadri} year${emp.expAtBadri !== 1 ? 's' : ''}`} />
               )}
               {emp.employmentType && <InfoCard label="Employment Type" value={emp.employmentType} />}
               {manager && <InfoCard label="Reports To" value={manager.name} />}

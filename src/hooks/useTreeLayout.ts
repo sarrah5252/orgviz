@@ -1,8 +1,10 @@
 import { useMemo } from 'react';
 import type { Node, Edge } from '@xyflow/react';
-import type { TreeNode, FilterState } from '../types';
+import type { TreeNode } from '../types';
 import { useOrgStore } from '../store/useOrgStore';
-import { getExpRange } from '../utils/constants';
+import { filterTree, pruneSubtree } from '../utils/treeFilters';
+
+export { filterTree, pruneSubtree };
 
 const NODE_WIDTH = 500;
 const NODE_HEIGHT = 175;
@@ -14,36 +16,6 @@ interface LayoutResult {
   edges: Edge[];
 }
 
-function filterTree(node: TreeNode, filters: FilterState, depth = 0): TreeNode | null {
-  const hasActiveFilters =
-    filters.departments.length > 0 ||
-    filters.locations.length > 0 ||
-    filters.clients.length > 0 ||
-    filters.experience.length > 0;
-
-  if (!hasActiveFilters) return node;
-
-  const filteredChildren = node.children
-    .map(child => filterTree(child, filters, depth + 1))
-    .filter(Boolean) as TreeNode[];
-
-  const expRange = getExpRange(node.yearsOfExperience);
-
-  const matches =
-    (filters.departments.length === 0 || filters.departments.includes(node.department)) &&
-    (filters.locations.length === 0 || filters.locations.includes(node.location)) &&
-    (filters.clients.length === 0 || (node.client && node.client !== '—' && filters.clients.includes(node.client))) &&
-    (filters.experience.length === 0 || (expRange && filters.experience.includes(expRange)));
-
-  // Pin MD (depth 0) and specific Level 1 directors (depth 1)
-  const isPinned = (depth === 0) || (depth === 1 && (node.name === 'Ali Bhuriwala' || node.name === 'Ajmal Bhatty'));
-
-  if (matches || filteredChildren.length > 0 || isPinned) {
-    return { ...node, children: filteredChildren };
-  }
-
-  return null;
-}
 
 function getNodeDimensions(node: TreeNode, orientation: 'vertical' | 'horizontal') {
   const isVertical = orientation === 'vertical';
@@ -174,40 +146,6 @@ function layoutTree(
     );
     currentBreadth += childrenBreadths[i] + gap;
   });
-}
-
-/**
- * Recursively search a tree node for descendants matching the selectedNames.
- * Returns a pruned copy of the subtree keeping only the paths to matched nodes,
- * preserving their full subtrees below the match.
- * Always preserves the top 2 levels (Root and Level 1 directors) regardless of match.
- */
-function pruneSubtree(node: TreeNode, selectedNames: string[], depth = 0): TreeNode | null {
-  // If THIS node matches, include it with its full subtree
-  if (selectedNames.includes(node.name)) {
-    return node; // keep entire subtree below
-  }
-
-  // Otherwise, recurse into children looking for matches
-  const prunedChildren = node.children
-    .map(child => pruneSubtree(child, selectedNames, depth + 1))
-    .filter(Boolean) as TreeNode[];
-
-  // User requirement: Always keep Managing Director (depth 0) and specific Level 1 Heads pinned
-  if (depth === 0) {
-    return { ...node, children: prunedChildren };
-  }
-
-  if (depth === 1 && (node.name === 'Ali Bhuriwala' || node.name === 'Ajmal Bhatty')) {
-    return { ...node, children: prunedChildren };
-  }
-
-  // For deeper nodes, only keep them if they lead to a match
-  if (prunedChildren.length > 0) {
-    return { ...node, children: prunedChildren };
-  }
-
-  return null;
 }
 
 /**

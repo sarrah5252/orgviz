@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { useOrgStore } from './store/useOrgStore';
+import { useOrgStore, defaultTitleFor } from './store/useOrgStore';
 import { FileUpload } from './components/FileUpload';
 import { OrgChart } from './components/OrgChart';
 import { FilterPanel } from './components/FilterPanel';
 import { DetailModal } from './components/DetailModal';
-import { BatchExportModal } from './components/BatchExportModal';
+import { ExportLoadingModal } from './components/ExportLoadingModal';
 import type { FilterState } from './types';
+import { EMPTY_FILTERS } from './utils/treeFilters';
 
 const ThemeToggle: React.FC = () => {
   const theme = useOrgStore(s => s.theme);
@@ -99,17 +100,13 @@ const SavedChartsMenu: React.FC = () => {
         {tree && (
           <div className="flex items-center gap-1">
             <button
-              onClick={async (e) => {
+              onClick={(e) => {
                 const btn = e.currentTarget;
                 const originalHtml = btn.innerHTML;
-                const { captureChartFn } = useOrgStore.getState();
-                
-                let dataUrl = undefined;
-                if (captureChartFn) {
-                  dataUrl = await captureChartFn();
-                }
-                
-                saveChart(dataUrl);
+
+                // PPT slides are rebuilt natively from the saved data + filters,
+                // so no screenshot is needed here.
+                saveChart();
                 
                 // Show success feedback
                 btn.innerHTML = `<svg class="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>`;
@@ -126,26 +123,45 @@ const SavedChartsMenu: React.FC = () => {
             {/* Quick PPT Download for current view */}
             <button
               onClick={async () => {
-                const { captureChartFn, tree, employees, filterOptions, chartTitle, orientation, showExperienceLegend } = useOrgStore.getState();
+                const { tree, employees, filterOptions, chartTitle, orientation, showExperienceLegend, activeFilters, setExportProgress } = useOrgStore.getState();
                 if (!tree) return;
-                
-                let dataUrl = undefined;
-                if (captureChartFn) {
-                  dataUrl = await captureChartFn();
-                }
 
-                const { generateDeck } = await import('./utils/pptExport');
-                // Export just this one chart as a quick PPT
-                generateDeck([{
-                  id: 'quick-export',
-                  title: chartTitle || 'Quick Export',
-                  tree,
-                  employees,
-                  filters: filterOptions,
-                  createdAt: Date.now(),
-                  imageData: dataUrl,
-                  orientation
-                }], showExperienceLegend);
+                const exportTitle = chartTitle || defaultTitleFor(activeFilters);
+                setExportProgress({
+                  isExporting: true,
+                  title: 'Generating PowerPoint',
+                  stage: `Preparing ${exportTitle}...`,
+                  percent: 6,
+                });
+
+                try {
+                  const { generateDeck } = await import('./utils/pptExport');
+                  await generateDeck([{
+                    id: 'quick-export',
+                    title: exportTitle,
+                    tree,
+                    employees,
+                    filters: filterOptions,
+                    createdAt: Date.now(),
+                    orientation,
+                    activeFilters,
+                  }], showExperienceLegend, (info) => {
+                    setExportProgress({
+                      isExporting: true,
+                      title: 'Generating PowerPoint',
+                      stage: info.stage,
+                      percent: info.percent,
+                      current: info.current,
+                      total: info.total,
+                      done: info.done,
+                    });
+                  });
+                  setTimeout(() => setExportProgress(null), 1200);
+                } catch (err) {
+                  console.error('Export failed:', err);
+                  setExportProgress(null);
+                  alert('Export failed. Please try again.');
+                }
               }}
               className="toolbar-btn text-red-500 hover:!text-red-400"
               title="Download current as PPT"
@@ -222,8 +238,32 @@ const SavedChartsMenu: React.FC = () => {
           <div className="p-2 bg-[var(--bg-tertiary)] flex justify-center border-t border-[var(--border-primary)]">
             <button
               onClick={async () => {
-                const { generateDeck } = await import('./utils/pptExport');
-                generateDeck(savedCharts, useOrgStore.getState().showExperienceLegend);
+                const { setExportProgress, showExperienceLegend } = useOrgStore.getState();
+                setExportProgress({
+                  isExporting: true,
+                  title: 'Generating PowerPoint Deck',
+                  stage: `Preparing ${savedCharts.length} saved chart${savedCharts.length > 1 ? 's' : ''}...`,
+                  percent: 6,
+                });
+                try {
+                  const { generateDeck } = await import('./utils/pptExport');
+                  await generateDeck(savedCharts, showExperienceLegend, (info) => {
+                    setExportProgress({
+                      isExporting: true,
+                      title: 'Generating PowerPoint Deck',
+                      stage: info.stage,
+                      percent: info.percent,
+                      current: info.current,
+                      total: info.total,
+                      done: info.done,
+                    });
+                  });
+                  setTimeout(() => setExportProgress(null), 1200);
+                } catch (err) {
+                  console.error('Export failed:', err);
+                  setExportProgress(null);
+                  alert('Export failed. Please try again.');
+                }
                 setOpen(false);
               }}
               className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors"
@@ -258,41 +298,34 @@ const App: React.FC = () => {
 
   // Batch export state
   const [batchExporting, setBatchExporting] = useState(false);
-  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number; label: string } | null>(null);
 
   // ─── Batch Export Handler ──────────────────────────────────
+  // Slides are built natively from the data, so there is no need to
+  // filter + screenshot each department on screen any more.
   const handleBatchExport = useCallback(async () => {
-    const state = useOrgStore.getState();
-    const { tree, employees, filterOptions, captureChartFn, setFilters, expandAll } = state;
-    if (!tree || !captureChartFn) {
+    const { tree, employees, filterOptions, showExperienceLegend } = useOrgStore.getState();
+    if (!tree) {
       alert('Please upload data first.');
       return;
     }
 
     // Build task list
-    const tasks: { title: string; filter: Partial<FilterState> }[] = [];
+    const tasks: { title: string; filter: FilterState }[] = [];
 
     // Non-Actuarial departments
     const departments = filterOptions.departments.filter(d => d !== 'Actuarial');
-    console.log('[BatchExport] Non-Actuarial departments:', departments);
     for (const dept of departments) {
-      tasks.push({
-        title: dept,
-        filter: { departments: [dept], directReports: [], locations: [], clients: [], experience: [] }
-      });
+      tasks.push({ title: dept, filter: { ...EMPTY_FILTERS, departments: [dept] } });
     }
 
     // Actuarial team leads — direct children of MD with dept "Actuarial"
     const actuarialLeads = findActuarialTeamLeads(tree);
-    console.log('[BatchExport] Actuarial team leads found:', actuarialLeads.map((h: any) => h.name));
     for (const lead of actuarialLeads) {
       tasks.push({
         title: `Actuarial — ${lead.name}'s Team`,
-        filter: { departments: [], directReports: [lead.name], locations: [], clients: [], experience: [] }
+        filter: { ...EMPTY_FILTERS, directReports: [lead.name] }
       });
     }
-
-    console.log('[BatchExport] Total tasks:', tasks.length, tasks.map(t => t.title));
 
     if (tasks.length === 0) {
       alert('No departments found to export.');
@@ -300,43 +333,35 @@ const App: React.FC = () => {
     }
 
     setBatchExporting(true);
-    const slides: { title: string; imageData: string }[] = [];
-
+    const { setExportProgress } = useOrgStore.getState();
+    setExportProgress({
+      isExporting: true,
+      title: 'Generating Department Presentations',
+      stage: 'Preparing slides...',
+      percent: 5,
+    });
     try {
-      for (let i = 0; i < tasks.length; i++) {
-        setBatchProgress({ current: i + 1, total: tasks.length, label: tasks[i].title });
-
-        // Apply filter for this department/team
-        setFilters(tasks[i].filter);
-        // Expand all nodes
-        expandAll();
-        // Wait for React + ReactFlow to re-render
-        await new Promise(r => setTimeout(r, 2000));
-
-        // Capture the chart
-        const imageData = await captureChartFn();
-        if (imageData) {
-          slides.push({ title: tasks[i].title, imageData });
-        }
-      }
-
-      // Restore filters to show everything
-      setFilters({ departments: [], directReports: [], locations: [], clients: [], experience: [] });
-      await new Promise(r => setTimeout(r, 500));
-
-      // Generate PPT
       const { generateBatchDeck } = await import('./utils/pptExport');
-      await generateBatchDeck(employees, slides, useOrgStore.getState().showExperienceLegend);
+      await generateBatchDeck(tree, employees, tasks, showExperienceLegend, (info) => {
+        setExportProgress({
+          isExporting: true,
+          title: 'Generating Department Presentations',
+          stage: info.stage,
+          percent: info.percent,
+          current: info.current,
+          total: info.total,
+          done: info.done,
+        });
+      });
+      setTimeout(() => setExportProgress(null), 1200);
     } catch (err) {
       console.error('Batch export failed:', err);
+      setExportProgress(null);
       alert('Export failed. Please try again.');
-      // Restore filters on error too
-      setFilters({ departments: [], directReports: [], locations: [], clients: [], experience: [] });
     } finally {
       setBatchExporting(false);
-      setBatchProgress(null);
     }
-  }, [employees]);
+  }, []);
 
   // Show input view if no tree OR if user clicked "Edit Data"
   if (!tree || editingData) {
@@ -418,10 +443,8 @@ const App: React.FC = () => {
       {/* Detail Modal */}
       <DetailModal />
 
-      {/* Batch Export Progress Modal */}
-      {batchExporting && batchProgress && (
-        <BatchExportModal progress={batchProgress} />
-      )}
+      {/* Export Loading Modal */}
+      <ExportLoadingModal />
     </div>
   );
 };
